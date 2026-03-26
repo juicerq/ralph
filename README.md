@@ -19,9 +19,11 @@ bunx @juicerq/ralph
 
 Ralph will:
 1. Fetch open issues with the configured label (default: `ralph`)
+   - If none found and running in a TTY, opens an interactive selector to pick from all open issues
 2. Run a planner agent (Opus) to analyze dependencies and order issues
 3. Spawn parallel Claude Code agents to implement each issue in isolated git worktrees
 4. Merge completed work back to the current branch
+5. Auto-resolve merge conflicts using Claude Code
 
 ### CLI Flags
 
@@ -32,7 +34,7 @@ bunx @juicerq/ralph --label my-label --concurrency 5 --model sonnet
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--label` | `ralph` | GitHub issue label to filter |
-| `--concurrency` | `3` | Max parallel agents |
+| `--concurrency` | `1` | Max parallel agents |
 | `--model` | `opus` | Default model (planner may override per issue) |
 | `--prompt` | built-in | Extra instructions for implementer agents |
 
@@ -45,7 +47,7 @@ import type { Config } from "@juicerq/ralph"
 
 export default {
   label: "ralph",
-  concurrency: 3,
+  concurrency: 1,
   model: "opus",
   prompt: "Run bun typecheck and bun test before committing.",
 } satisfies Config
@@ -67,10 +69,11 @@ bunx @juicerq/ralph
   |    claude -p --model <model> (runs in worktree)
   |    git merge ralph/<number> (back to current branch)
   |    cleanup worktree + branch
-  5. Summary: success/fail per issue
+  5. Resolve merge conflicts with Claude Code
+  6. Summary: success/fail per issue
 ```
 
-On merge conflict, the branch is preserved for manual resolution.
+On unresolvable conflict, the branch is preserved for manual resolution.
 On failure, the branch is preserved for inspection.
 
 ## Requirements
