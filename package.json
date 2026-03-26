@@ -1,0 +1,23 @@
+{
+	"name": "@juicerq/ralph",
+	"version": "0.1.5",
+	"type": "module",
+	"description": "Orchestrate Claude Code agents to implement GitHub issues in parallel",
+	"bin": {
+		"ralph": "src/cli.ts"
+	},
+	"exports": {
+		".": "./src/config.ts"
+	},
+	"files": ["src"],
+	"keywords": ["claude", "ai", "agent", "github", "automation"],
+	"author": "jui",
+	"license": "MIT",
+	"devDependencies": {
+		"@types/bun": "latest",
+		"typescript": "^5.8.0"
+	},
+	"publishConfig": {
+		"access": "public"
+	}
+}
