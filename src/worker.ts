@@ -97,6 +97,75 @@ After implementing:
 3. Commit your changes with a descriptive message referencing issue #${issue.number}`
 }
 
+export async function resolveConflict(
+	result: WorkerResult,
+	config: Config,
+): Promise<WorkerResult> {
+	const { branch, issue } = result
+
+	try {
+		const mergeOutcome = await exec(["git", "merge", branch, "--no-commit", "--no-ff"])
+			.then(() => "clean" as const)
+			.catch(() => "conflict" as const)
+
+		if (mergeOutcome === "clean") {
+			await exec(["git", "commit", "--no-edit"])
+			await exec(["git", "branch", "-D", branch]).catch(() => {})
+			return { issue, status: "success", branch }
+		}
+
+		const conflicting = await exec(["git", "diff", "--name-only", "--diff-filter=U"])
+		if (!conflicting) {
+			await exec(["git", "commit", "--no-edit"])
+			await exec(["git", "branch", "-D", branch]).catch(() => {})
+			return { issue, status: "success", branch }
+		}
+
+		await runClaude(buildConflictPrompt(issue, conflicting), {
+			model: resolveModel(config.model),
+		})
+
+		const remaining = await exec(["git", "diff", "--name-only", "--diff-filter=U"]).catch(() => "")
+		if (remaining) {
+			await exec(["git", "merge", "--abort"]).catch(() => {})
+			return {
+				issue,
+				status: "merge-failed",
+				error: `Conflict resolution failed. Branch ${branch} preserved.`,
+				branch,
+			}
+		}
+
+		await exec(["git", "commit", "--no-edit"])
+		await exec(["git", "branch", "-D", branch]).catch(() => {})
+		return { issue, status: "success", branch }
+	} catch (e) {
+		await exec(["git", "merge", "--abort"]).catch(() => {})
+		return {
+			issue,
+			status: "merge-failed",
+			error: e instanceof Error ? e.message : String(e),
+			branch,
+		}
+	}
+}
+
+function buildConflictPrompt(issue: WorkerIssue, conflictingFiles: string) {
+	return `You are resolving merge conflicts. Branch ralph/${issue.number} implements issue #${issue.number}: ${issue.title}
+
+${issue.body || "No description provided."}
+
+Conflicting files:
+${conflictingFiles}
+
+Instructions:
+1. Read each conflicting file
+2. Resolve conflicts by integrating BOTH sides. HEAD has already-merged work from other issues, incoming is this issue's implementation
+3. Remove all conflict markers (<<<<<<<, =======, >>>>>>>)
+4. Stage resolved files with git add
+5. Do NOT commit`
+}
+
 async function cleanup(worktreePath: string, branch: string) {
 	await removeWorktree(worktreePath)
 	await exec(["git", "branch", "-D", branch]).catch(() => {})

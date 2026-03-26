@@ -7,7 +7,7 @@ export type Config = {
 
 const DEFAULTS: Config = {
 	label: "ralph",
-	concurrency: 3,
+	concurrency: 1,
 	model: "opus",
 	prompt: "Implement the issue. Run tests before committing if applicable.",
 }

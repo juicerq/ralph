@@ -2,7 +2,8 @@
 
 import { loadConfig } from "./config"
 import { fetchIssues, runPlanner } from "./planner"
-import { runWorker, type WorkerIssue, type WorkerResult } from "./worker"
+import { selectIssues } from "./select"
+import { resolveConflict, runWorker, type WorkerIssue, type WorkerResult } from "./worker"
 import * as log from "./log"
 import { exec } from "./exec"
 
@@ -14,7 +15,7 @@ async function main() {
 
 Options:
   --label <name>       Issue label (default: ralph)
-  --concurrency <n>    Max parallel agents (default: 3)
+  --concurrency <n>    Max parallel agents (default: 1)
   --model <name>       Default model: opus, sonnet (default: opus)
   --prompt <text>      Extra instructions for agents
   -h, --help           Show this help`)
@@ -24,10 +25,12 @@ Options:
 	const flags = parseFlags(args)
 	const config = await loadConfig(flags)
 
-	const issues = await fetchIssues(config.label)
+	let issues = await fetchIssues(config.label)
 	if (issues.length === 0) {
 		log.info(`No issues with label "${config.label}"`)
-		return
+		if (!process.stdin.isTTY) return
+		issues = await selectIssues()
+		if (issues.length === 0) return
 	}
 	log.info(`Found ${issues.length} issue(s)`)
 
@@ -47,6 +50,18 @@ Options:
 	})
 
 	const results = await runWorkers(enriched, config)
+
+	const conflicts = results.filter((r) => r.status === "merge-failed")
+	if (conflicts.length > 0) {
+		log.info(`\nResolving ${conflicts.length} conflict(s)...`)
+		for (const result of conflicts) {
+			log.status(result.issue, "resolving")
+			const resolved = await resolveConflict(result, config)
+			results[results.indexOf(result)] = resolved
+			log.status(resolved.issue, resolved.status === "success" ? "resolved" : "unresolved")
+		}
+	}
+
 	log.summary(results)
 
 	const failures = results.filter((r) => r.status !== "success")
