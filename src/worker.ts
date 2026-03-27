@@ -55,7 +55,7 @@ export async function runWorker(
 		const logFile = `${process.cwd()}/.ralph/logs/${issue.number}.log`
 		const prompt = resuming ? buildResumePrompt(issue, config) : buildPrompt(issue, config)
 		await runClaude(prompt, {
-			model: resolveModel(issue.model),
+			model: resolveModel(config.model),
 			cwd: worktreePath,
 			logFile,
 		})

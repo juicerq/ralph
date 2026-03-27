@@ -17,44 +17,44 @@ const issues: Issue[] = [
 ]
 
 describe("runPlanner", () => {
-	test("single issue: returns opus without calling Claude", async () => {
+	test("single issue: skips Claude", async () => {
 		const result = await runPlanner([issues[0]])
 
-		expect(result).toEqual([{ number: 1, title: "Add auth", model: "opus", dependsOn: [] }])
+		expect(result).toEqual([{ number: 1, title: "Add auth", dependsOn: [] }])
 		expect(mockRunClaude).not.toHaveBeenCalled()
 	})
 
-	test("multiple issues: parses Claude JSON with dependsOn", async () => {
+	test("multiple issues: parses dependencies from Claude", async () => {
 		mockRunClaude.mockImplementation(async () =>
-			`[{"number": 1, "title": "Add auth", "model": "opus", "dependsOn": []}, {"number": 2, "title": "Fix typo", "model": "sonnet", "dependsOn": [1]}]`
+			`[{"number": 1, "title": "Add auth", "dependsOn": []}, {"number": 2, "title": "Fix typo", "dependsOn": [1]}]`
 		)
 
 		const result = await runPlanner([issues[0], issues[1]])
 
 		expect(result).toEqual([
-			{ number: 1, title: "Add auth", model: "opus", dependsOn: [] },
-			{ number: 2, title: "Fix typo", model: "sonnet", dependsOn: [1] },
+			{ number: 1, title: "Add auth", dependsOn: [] },
+			{ number: 2, title: "Fix typo", dependsOn: [1] },
 		])
 	})
 
 	test("filters out issues and dependsOn refs not in the original list", async () => {
 		mockRunClaude.mockImplementation(async () =>
-			`[{"number": 1, "title": "Add auth", "model": "opus", "dependsOn": [999]}]`
+			`[{"number": 1, "title": "Add auth", "dependsOn": [999]}]`
 		)
 
 		const result = await runPlanner([issues[0], issues[1]])
 
-		expect(result).toEqual([{ number: 1, title: "Add auth", model: "opus", dependsOn: [] }])
+		expect(result).toEqual([{ number: 1, title: "Add auth", dependsOn: [] }])
 	})
 
 	test("defaults missing dependsOn to empty array", async () => {
 		mockRunClaude.mockImplementation(async () =>
-			`[{"number": 1, "title": "Add auth", "model": "opus"}]`
+			`[{"number": 1, "title": "Add auth"}]`
 		)
 
 		const result = await runPlanner([issues[0], issues[1]])
 
-		expect(result).toEqual([{ number: 1, title: "Add auth", model: "opus", dependsOn: [] }])
+		expect(result).toEqual([{ number: 1, title: "Add auth", dependsOn: [] }])
 	})
 
 	test("throws on invalid JSON from Claude", async () => {

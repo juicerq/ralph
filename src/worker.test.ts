@@ -41,7 +41,6 @@ const issue: WorkerIssue = {
 	number: 99,
 	title: "Test issue",
 	body: "Test body",
-	model: "opus",
 	dependsOn: [],
 }
 
