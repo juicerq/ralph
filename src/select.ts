@@ -16,6 +16,7 @@ export async function selectIssues() {
 	]);
 
 	const issues = JSON.parse(json) as Issue[];
+
 	if (issues.length === 0) return [];
 
 	return checkbox<Issue>({

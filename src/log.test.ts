@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import type { WorkerResult } from "./worker";
 
 const originalLog = console.log;
+
 let logged: string[];
 
 beforeEach(() => {

@@ -35,6 +35,7 @@ mock.module("./exec", () => ({
 const { runWorker, resolveConflict } = await import("./worker");
 
 let testDir: string;
+
 let originalCwd: string;
 
 const issue: WorkerIssue = {

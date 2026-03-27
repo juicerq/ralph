@@ -17,6 +17,7 @@ export async function runWorker(
 	merge: (branch: string) => Promise<void>,
 ) {
 	const branch = `ralph/${issue.number}`;
+
 	const worktreePath = `${process.cwd()}/.ralph/${issue.number}`;
 
 	try {
@@ -48,9 +49,11 @@ export async function runWorker(
 		const baseCommit = await exec(["git", "rev-parse", "HEAD"]);
 
 		const logFile = `${process.cwd()}/.ralph/logs/${issue.number}.log`;
+
 		const prompt = branchExists
 			? buildResumePrompt(issue, config)
 			: buildPrompt(issue, config);
+
 		await runClaude(prompt, {
 			model: resolveModel(config.model),
 			cwd: worktreePath,
@@ -64,8 +67,10 @@ export async function runWorker(
 			"rev-parse",
 			"HEAD",
 		]);
+
 		if (baseCommit === worktreeHead) {
 			await cleanup(worktreePath, branch);
+
 			return {
 				issue,
 				status: "failed" as const,
@@ -87,6 +92,7 @@ export async function runWorker(
 		}
 
 		await cleanup(worktreePath, branch);
+
 		return { issue, status: "success" as const, branch };
 	} catch (e) {
 		await removeWorktree(worktreePath);
@@ -100,35 +106,38 @@ export async function runWorker(
 }
 
 function buildResumePrompt(issue: WorkerIssue, config: Config) {
-	return `You are resuming work on GitHub issue #${issue.number}: ${issue.title}
+	return `
+		You are resuming work on GitHub issue #${issue.number}: ${issue.title}
+		${issue.body || "No description provided."}
 
-${issue.body || "No description provided."}
+		${config.prompt}
 
-${config.prompt}
+		A previous agent was working on this issue in this worktree. Before continuing, check git status and git diff to understand what was already done. Then complete the remaining work.
 
-A previous agent was working on this issue in this worktree. Before continuing, check git status and git diff to understand what was already done. Then complete the remaining work.
+		IMPORTANT: You MUST commit your changes before finishing. If you don't commit, your work will be lost.
 
-IMPORTANT: You MUST commit your changes before finishing. If you don't commit, your work will be lost.
-
-After implementing:
-1. Make sure the code compiles and typechecks
-2. Run tests if applicable
-3. Commit your changes with a descriptive message referencing issue #${issue.number}`;
+		After implementing:
+		1. Make sure the code compiles and typechecks
+		2. Run tests if applicable
+		3. Commit your changes with a descriptive message referencing issue #${issue.number}
+	`;
 }
 
 function buildPrompt(issue: WorkerIssue, config: Config) {
-	return `You are implementing GitHub issue #${issue.number}: ${issue.title}
+	return `
+	You are implementing GitHub issue #${issue.number}: ${issue.title}
 
-${issue.body || "No description provided."}
+	${issue.body || "No description provided."}
 
-${config.prompt}
+	${config.prompt}
 
-IMPORTANT: You MUST commit your changes before finishing. If you don't commit, your work will be lost.
+	IMPORTANT: You MUST commit your changes before finishing. If you don't commit, your work will be lost.
 
-After implementing:
-1. Make sure the code compiles and typechecks
-2. Run tests if applicable
-3. Commit your changes with a descriptive message referencing issue #${issue.number}`;
+	After implementing:
+	1. Make sure the code compiles and typechecks
+	2. Run tests if applicable
+	3. Commit your changes with a descriptive message referencing issue #${issue.number}
+`;
 }
 
 export async function resolveConflict(result: WorkerResult, config: Config) {
@@ -147,7 +156,9 @@ export async function resolveConflict(result: WorkerResult, config: Config) {
 
 		if (mergeOutcome === "clean") {
 			await exec(["git", "commit", "--no-edit"]);
+
 			await exec(["git", "branch", "-D", branch]).catch(() => {});
+
 			return { issue, status: "success" as const, branch };
 		}
 
@@ -157,9 +168,12 @@ export async function resolveConflict(result: WorkerResult, config: Config) {
 			"--name-only",
 			"--diff-filter=U",
 		]);
+
 		if (!conflicting) {
 			await exec(["git", "commit", "--no-edit"]);
+
 			await exec(["git", "branch", "-D", branch]).catch(() => {});
+
 			return { issue, status: "success" as const, branch };
 		}
 
@@ -174,6 +188,7 @@ export async function resolveConflict(result: WorkerResult, config: Config) {
 			"--name-only",
 			"--diff-filter=U",
 		]).catch(() => "");
+
 		if (remaining) {
 			await exec(["git", "merge", "--abort"]).catch(() => {});
 			return {
@@ -185,7 +200,9 @@ export async function resolveConflict(result: WorkerResult, config: Config) {
 		}
 
 		await exec(["git", "commit", "--no-edit"]);
+
 		await exec(["git", "branch", "-D", branch]).catch(() => {});
+
 		return { issue, status: "success" as const, branch };
 	} catch (e) {
 		await exec(["git", "merge", "--abort"]).catch(() => {});
@@ -199,23 +216,26 @@ export async function resolveConflict(result: WorkerResult, config: Config) {
 }
 
 function buildConflictPrompt(issue: WorkerIssue, conflictingFiles: string) {
-	return `You are resolving merge conflicts. Branch ralph/${issue.number} implements issue #${issue.number}: ${issue.title}
+	return `
+	You are resolving merge conflicts. Branch ralph/${issue.number} implements issue #${issue.number}: ${issue.title}
 
-${issue.body || "No description provided."}
+	${issue.body || "No description provided."}
 
-Conflicting files:
-${conflictingFiles}
+	Conflicting files:
+	${conflictingFiles}
 
-Instructions:
-1. Read each conflicting file
-2. Resolve conflicts by integrating BOTH sides. HEAD has already-merged work from other issues, incoming is this issue's implementation
-3. Remove all conflict markers (<<<<<<<, =======, >>>>>>>)
-4. Stage resolved files with git add
-5. Do NOT commit`;
+	Instructions:
+	1. Read each conflicting file
+	2. Resolve conflicts by integrating BOTH sides. HEAD has already-merged work from other issues, incoming is this issue's implementation
+	3. Remove all conflict markers (<<<<<<<, =======, >>>>>>>)
+	4. Stage resolved files with git add
+	5. Do NOT commit
+`;
 }
 
 async function cleanup(worktreePath: string, branch: string) {
 	await removeWorktree(worktreePath);
+
 	await exec(["git", "branch", "-D", branch]).catch(() => {});
 }
 

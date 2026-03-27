@@ -44,37 +44,51 @@ export async function runClaude(
 	);
 
 	const chunks: string[] = [];
+
 	const reader = proc.stdout.getReader();
+
 	const decoder = new TextDecoder();
 
 	let logWriter: ReturnType<ReturnType<typeof Bun.file>["writer"]> | undefined;
+
 	if (opts.logFile) {
 		const dir = opts.logFile.substring(0, opts.logFile.lastIndexOf("/"));
+
 		await mkdir(dir, { recursive: true });
+
 		logWriter = Bun.file(opts.logFile).writer();
 	}
 
 	while (true) {
 		const { done, value } = await reader.read();
+
 		if (done) break;
+
 		const text = decoder.decode(value, { stream: true });
+
 		chunks.push(text);
+
 		if (logWriter) logWriter.write(value);
 	}
 
 	if (logWriter) {
 		logWriter.flush();
+
 		logWriter.end();
 	}
 
-	const [exitCode, stderr] = await Promise.all([proc.exited, new Response(proc.stderr).text()]);
+	const [exitCode, stderr] = await Promise.all([
+		proc.exited,
+		new Response(proc.stderr).text(),
+	]);
 
 	const stdout = chunks.join("");
 
 	if (exitCode !== 0) {
-		if (logWriter && stderr) {
-			await Bun.write(opts.logFile!, stdout + "\n--- STDERR ---\n" + stderr);
+		if (logWriter && stderr && opts.logFile) {
+			await Bun.write(opts.logFile, `stdout ${" \n--- STDERR ---\n "} stderr`);
 		}
+
 		throw new Error(`claude failed (exit ${exitCode}):\n${stderr}`);
 	}
 
@@ -88,6 +102,7 @@ function parseStreamJson(raw: string) {
 	for (const line of lines) {
 		try {
 			const parsed = JSON.parse(line);
+
 			if (parsed.type === "assistant") {
 				for (const block of parsed.message?.content ?? []) {
 					if (block.type === "text") {

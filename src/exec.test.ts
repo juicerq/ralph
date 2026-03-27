@@ -7,11 +7,13 @@ import { exec } from "./exec";
 describe("exec", () => {
 	test("returns trimmed stdout on success", async () => {
 		const result = await exec(["echo", "hello world"]);
+
 		expect(result).toBe("hello world");
 	});
 
 	test("handles multi-line output", async () => {
 		const result = await exec(["printf", "line1\nline2\n"]);
+
 		expect(result).toBe("line1\nline2");
 	});
 
@@ -27,11 +29,13 @@ describe("exec", () => {
 
 	test("respects cwd option", async () => {
 		const result = await exec(["pwd"], { cwd: "/tmp" });
+
 		expect(result).toMatch(/\/tmp/);
 	});
 
 	test("returns empty string for empty output", async () => {
 		const result = await exec(["true"]);
+
 		expect(result).toBe("");
 	});
 });
@@ -42,6 +46,7 @@ describe("parseStreamJson", () => {
 	// by importing the module with mocked spawn.
 
 	const mockSpawn = mock();
+
 	const mockMkdir = mock();
 
 	beforeEach(() => {
@@ -85,6 +90,7 @@ describe("parseStreamJson", () => {
 			const { runClaude } = await import("./exec");
 
 			const result = await runClaude("test prompt", { model: "opus" });
+
 			expect(result).toBe("final answer");
 		} finally {
 			(Bun as any).spawn = originalSpawn;
@@ -118,6 +124,7 @@ describe("parseStreamJson", () => {
 			const { runClaude } = await import("./exec");
 
 			const result = await runClaude("test", { model: "opus" });
+
 			expect(result).toBe("the real answer");
 		} finally {
 			(Bun as any).spawn = originalSpawn;
@@ -156,6 +163,7 @@ describe("parseStreamJson", () => {
 			const { runClaude } = await import("./exec");
 
 			const result = await runClaude("test", { model: "opus" });
+
 			expect(result).toBe("");
 		} finally {
 			(Bun as any).spawn = originalSpawn;

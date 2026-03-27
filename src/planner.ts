@@ -37,6 +37,7 @@ export async function runPlanner(issues: Issue[]) {
 	}
 
 	const prompt = buildPrompt(issues);
+
 	const output = await runClaude(prompt, { model: resolveModel("opus") });
 
 	return extractPlan(output, issues);

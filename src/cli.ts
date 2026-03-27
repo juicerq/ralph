@@ -5,12 +5,7 @@ import { exec } from "./exec";
 import * as log from "./log";
 import { fetchIssues, runPlanner } from "./planner";
 import { selectIssues } from "./select";
-import {
-	resolveConflict,
-	runWorker,
-	type WorkerIssue,
-	type WorkerResult,
-} from "./worker";
+import { resolveConflict, runWorker, type WorkerIssue, type WorkerResult } from "./worker";
 
 async function main() {
 	const args = process.argv.slice(2);
@@ -80,18 +75,10 @@ async function main() {
 
 			results[results.indexOf(result)] = resolved;
 
-			log.status(
-				resolved.issue,
-				resolved.status === "success" ? "resolved" : "unresolved",
-			);
+			log.status(resolved.issue, resolved.status === "success" ? "resolved" : "unresolved");
 
 			if (resolved.status === "success") {
-				await exec([
-					"gh",
-					"issue",
-					"close",
-					String(resolved.issue.number),
-				]).catch(() => {});
+				await exec(["gh", "issue", "close", String(resolved.issue.number)]).catch(() => {});
 			}
 		}
 	}
@@ -196,9 +183,7 @@ async function runWorkers(issues: WorkerIssue[], config: Config) {
 		}
 
 		while (running.size < config.concurrency) {
-			const readyIdx = queue.findIndex((i) =>
-				i.dependsOn.every((d) => completed.has(d)),
-			);
+			const readyIdx = queue.findIndex((i) => i.dependsOn.every((d) => completed.has(d)));
 
 			if (readyIdx === -1) break;
 
@@ -228,12 +213,7 @@ async function runWorkers(issues: WorkerIssue[], config: Config) {
 
 					log.status(result.issue, "merged");
 
-					await exec([
-						"gh",
-						"issue",
-						"close",
-						String(result.issue.number),
-					]).catch(() => {});
+					await exec(["gh", "issue", "close", String(result.issue.number)]).catch(() => {});
 				} else {
 					failed.add(result.issue.number);
 
