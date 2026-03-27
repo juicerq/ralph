@@ -1,24 +1,24 @@
-import { exec, runClaude } from "./exec"
-import type { PlannedIssue } from "./planner"
-import type { Config } from "./config"
+import { exec, runClaude } from "./exec";
+import type { PlannedIssue } from "./planner";
+import type { Config } from "./config";
 
-export type WorkerIssue = PlannedIssue & { body: string }
+export type WorkerIssue = PlannedIssue & { body: string };
 
 export type WorkerResult = {
-	issue: WorkerIssue
-	status: "success" | "merge-failed" | "failed"
-	error?: string
-	branch: string
-}
+	issue: WorkerIssue;
+	status: "success" | "merge-failed" | "failed";
+	error?: string;
+	branch: string;
+};
 
 const MODEL_MAP: Record<string, string> = {
 	opus: "claude-opus-4-6",
 	sonnet: "claude-sonnet-4-6",
 	haiku: "claude-haiku-4-5-20251001",
-}
+};
 
 function resolveModel(model: string) {
-	return MODEL_MAP[model] ?? model
+	return MODEL_MAP[model] ?? model;
 }
 
 export async function runWorker(
@@ -26,68 +26,69 @@ export async function runWorker(
 	config: Config,
 	merge: (branch: string) => Promise<void>,
 ): Promise<WorkerResult> {
-	const branch = `ralph/${issue.number}`
-	const worktreePath = `${process.cwd()}/.ralph/${issue.number}`
+	const branch = `ralph/${issue.number}`;
+	const worktreePath = `${process.cwd()}/.ralph/${issue.number}`;
 
 	try {
 		const branchExists = await exec(["git", "rev-parse", "--verify", branch]).then(
 			() => true,
 			() => false,
-		)
+		);
 
-		let resuming = false
+		let resuming = false;
 		if (branchExists) {
-			const worktreeExists = await exec(["git", "worktree", "list", "--porcelain"])
-				.then((out) => out.includes(worktreePath))
+			const worktreeExists = await exec(["git", "worktree", "list", "--porcelain"]).then((out) =>
+				out.includes(worktreePath),
+			);
 
 			if (worktreeExists) {
-				resuming = true
+				resuming = true;
 			} else {
-				await exec(["git", "worktree", "add", worktreePath, branch])
-				resuming = true
+				await exec(["git", "worktree", "add", worktreePath, branch]);
+				resuming = true;
 			}
 		} else {
-			await exec(["git", "worktree", "add", worktreePath, "-b", branch])
+			await exec(["git", "worktree", "add", worktreePath, "-b", branch]);
 		}
 
-		const baseCommit = await exec(["git", "rev-parse", "HEAD"])
+		const baseCommit = await exec(["git", "rev-parse", "HEAD"]);
 
-		const logFile = `${process.cwd()}/.ralph/logs/${issue.number}.log`
-		const prompt = resuming ? buildResumePrompt(issue, config) : buildPrompt(issue, config)
+		const logFile = `${process.cwd()}/.ralph/logs/${issue.number}.log`;
+		const prompt = resuming ? buildResumePrompt(issue, config) : buildPrompt(issue, config);
 		await runClaude(prompt, {
 			model: resolveModel(config.model),
 			cwd: worktreePath,
 			logFile,
-		})
+		});
 
-		const worktreeHead = await exec(["git", "-C", worktreePath, "rev-parse", "HEAD"])
+		const worktreeHead = await exec(["git", "-C", worktreePath, "rev-parse", "HEAD"]);
 		if (baseCommit === worktreeHead) {
-			await cleanup(worktreePath, branch)
-			return { issue, status: "failed", error: "No commits made", branch }
+			await cleanup(worktreePath, branch);
+			return { issue, status: "failed", error: "No commits made", branch };
 		}
 
 		try {
-			await merge(branch)
+			await merge(branch);
 		} catch {
-			await removeWorktree(worktreePath)
+			await removeWorktree(worktreePath);
 			return {
 				issue,
 				status: "merge-failed",
 				error: `Merge conflict. Branch ${branch} preserved.`,
 				branch,
-			}
+			};
 		}
 
-		await cleanup(worktreePath, branch)
-		return { issue, status: "success", branch }
+		await cleanup(worktreePath, branch);
+		return { issue, status: "success", branch };
 	} catch (e) {
-		await removeWorktree(worktreePath)
+		await removeWorktree(worktreePath);
 		return {
 			issue,
 			status: "failed",
 			error: e instanceof Error ? e.message : String(e),
 			branch,
-		}
+		};
 	}
 }
 
@@ -105,7 +106,7 @@ IMPORTANT: You MUST commit your changes before finishing. If you don't commit, y
 After implementing:
 1. Make sure the code compiles and typechecks
 2. Run tests if applicable
-3. Commit your changes with a descriptive message referencing issue #${issue.number}`
+3. Commit your changes with a descriptive message referencing issue #${issue.number}`;
 }
 
 function buildPrompt(issue: WorkerIssue, config: Config) {
@@ -120,60 +121,57 @@ IMPORTANT: You MUST commit your changes before finishing. If you don't commit, y
 After implementing:
 1. Make sure the code compiles and typechecks
 2. Run tests if applicable
-3. Commit your changes with a descriptive message referencing issue #${issue.number}`
+3. Commit your changes with a descriptive message referencing issue #${issue.number}`;
 }
 
-export async function resolveConflict(
-	result: WorkerResult,
-	config: Config,
-): Promise<WorkerResult> {
-	const { branch, issue } = result
+export async function resolveConflict(result: WorkerResult, config: Config): Promise<WorkerResult> {
+	const { branch, issue } = result;
 
 	try {
 		const mergeOutcome = await exec(["git", "merge", branch, "--no-commit", "--no-ff"])
 			.then(() => "clean" as const)
-			.catch(() => "conflict" as const)
+			.catch(() => "conflict" as const);
 
 		if (mergeOutcome === "clean") {
-			await exec(["git", "commit", "--no-edit"])
-			await exec(["git", "branch", "-D", branch]).catch(() => {})
-			return { issue, status: "success", branch }
+			await exec(["git", "commit", "--no-edit"]);
+			await exec(["git", "branch", "-D", branch]).catch(() => {});
+			return { issue, status: "success", branch };
 		}
 
-		const conflicting = await exec(["git", "diff", "--name-only", "--diff-filter=U"])
+		const conflicting = await exec(["git", "diff", "--name-only", "--diff-filter=U"]);
 		if (!conflicting) {
-			await exec(["git", "commit", "--no-edit"])
-			await exec(["git", "branch", "-D", branch]).catch(() => {})
-			return { issue, status: "success", branch }
+			await exec(["git", "commit", "--no-edit"]);
+			await exec(["git", "branch", "-D", branch]).catch(() => {});
+			return { issue, status: "success", branch };
 		}
 
 		await runClaude(buildConflictPrompt(issue, conflicting), {
 			model: resolveModel(config.model),
 			logFile: `${process.cwd()}/.ralph/logs/${issue.number}-conflict.log`,
-		})
+		});
 
-		const remaining = await exec(["git", "diff", "--name-only", "--diff-filter=U"]).catch(() => "")
+		const remaining = await exec(["git", "diff", "--name-only", "--diff-filter=U"]).catch(() => "");
 		if (remaining) {
-			await exec(["git", "merge", "--abort"]).catch(() => {})
+			await exec(["git", "merge", "--abort"]).catch(() => {});
 			return {
 				issue,
 				status: "merge-failed",
 				error: `Conflict resolution failed. Branch ${branch} preserved.`,
 				branch,
-			}
+			};
 		}
 
-		await exec(["git", "commit", "--no-edit"])
-		await exec(["git", "branch", "-D", branch]).catch(() => {})
-		return { issue, status: "success", branch }
+		await exec(["git", "commit", "--no-edit"]);
+		await exec(["git", "branch", "-D", branch]).catch(() => {});
+		return { issue, status: "success", branch };
 	} catch (e) {
-		await exec(["git", "merge", "--abort"]).catch(() => {})
+		await exec(["git", "merge", "--abort"]).catch(() => {});
 		return {
 			issue,
 			status: "merge-failed",
 			error: e instanceof Error ? e.message : String(e),
 			branch,
-		}
+		};
 	}
 }
 
@@ -190,14 +188,14 @@ Instructions:
 2. Resolve conflicts by integrating BOTH sides. HEAD has already-merged work from other issues, incoming is this issue's implementation
 3. Remove all conflict markers (<<<<<<<, =======, >>>>>>>)
 4. Stage resolved files with git add
-5. Do NOT commit`
+5. Do NOT commit`;
 }
 
 async function cleanup(worktreePath: string, branch: string) {
-	await removeWorktree(worktreePath)
-	await exec(["git", "branch", "-D", branch]).catch(() => {})
+	await removeWorktree(worktreePath);
+	await exec(["git", "branch", "-D", branch]).catch(() => {});
 }
 
 async function removeWorktree(worktreePath: string) {
-	await exec(["git", "worktree", "remove", worktreePath, "--force"]).catch(() => {})
+	await exec(["git", "worktree", "remove", worktreePath, "--force"]).catch(() => {});
 }

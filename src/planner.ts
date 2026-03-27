@@ -1,44 +1,50 @@
-import { exec, runClaude } from "./exec"
+import { exec, runClaude } from "./exec";
 
 export type Issue = {
-	number: number
-	title: string
-	body: string
-}
+	number: number;
+	title: string;
+	body: string;
+};
 
 export type PlannedIssue = {
-	number: number
-	title: string
-	dependsOn: number[]
-}
+	number: number;
+	title: string;
+	dependsOn: number[];
+};
 
 export async function fetchIssues(label: string) {
 	const json = await exec([
-		"gh", "issue", "list",
-		"--label", label,
-		"--state", "open",
-		"--json", "number,title,body",
-		"--limit", "50",
-	])
+		"gh",
+		"issue",
+		"list",
+		"--label",
+		label,
+		"--state",
+		"open",
+		"--json",
+		"number,title,body",
+		"--limit",
+		"50",
+	]);
 
-	return JSON.parse(json) as Issue[]
+	return JSON.parse(json) as Issue[];
 }
 
 export async function runPlanner(issues: Issue[]) {
 	if (issues.length === 1) {
-		return [{ number: issues[0].number, title: issues[0].title, dependsOn: [] }]
+		return [{ number: issues[0].number, title: issues[0].title, dependsOn: [] }];
 	}
 
-	const prompt = buildPrompt(issues)
-	const output = await runClaude(prompt, { model: "claude-opus-4-6" })
+	const prompt = buildPrompt(issues);
+	const output = await runClaude(prompt, { model: "claude-opus-4-6" });
 
-	return extractPlan(output, issues)
+	return extractPlan(output, issues);
 }
 
 function buildPrompt(issues: Issue[]) {
 	const list = issues
 		.map((i) => `## #${i.number}: ${i.title}\n${i.body ?? "No description."}`)
-		.join("\n\n")
+		.join("\n\n");
 
 	return `You are a planning agent. Analyze these GitHub issues and determine dependencies.
 
@@ -49,20 +55,22 @@ Issues:
 ${list}
 
 Return ONLY a JSON array, no other text:
-[{"number": 42, "title": "Add auth", "dependsOn": []}, {"number": 43, "title": "Use auth", "dependsOn": [42]}]`
+[{"number": 42, "title": "Add auth", "dependsOn": []}, {"number": 43, "title": "Use auth", "dependsOn": [42]}]`;
 }
 
 function extractPlan(output: string, issues: Issue[]) {
-	const match = output.match(/\[[\s\S]*\]/)
-	if (!match) throw new Error("Planner returned invalid JSON:\n" + output)
+	const match = output.match(/\[[\s\S]*\]/);
 
-	const parsed = JSON.parse(match[0]) as PlannedIssue[]
-	const validNumbers = new Set(issues.map((i) => i.number))
+	if (!match) throw new Error("Planner returned invalid JSON:\n" + output);
+
+	const parsed = JSON.parse(match[0]) as PlannedIssue[];
+
+	const validNumbers = new Set(issues.map((i) => i.number));
 
 	return parsed
 		.filter((p) => validNumbers.has(p.number))
 		.map((p) => ({
 			...p,
 			dependsOn: (p.dependsOn ?? []).filter((d) => validNumbers.has(d)),
-		}))
+		}));
 }

@@ -1,10 +1,10 @@
 export type Config = {
-	label: string
-	concurrency: number
-	model: string
-	prompt: string
-	retries: number
-}
+	label: string;
+	concurrency: number;
+	model: string;
+	prompt: string;
+	retries: number;
+};
 
 const DEFAULTS: Config = {
 	label: "ralph",
@@ -12,27 +12,27 @@ const DEFAULTS: Config = {
 	model: "opus",
 	prompt: "Implement the issue. Run tests before committing if applicable.",
 	retries: 1,
-}
+};
 
 export async function loadConfig(flags: Partial<Config>) {
-	const fileConfig = await loadConfigFile()
-	return { ...DEFAULTS, ...fileConfig, ...stripUndefined(flags) }
+	const fileConfig = await loadConfigFile();
+	return { ...DEFAULTS, ...fileConfig, ...stripUndefined(flags) };
 }
 
 async function loadConfigFile(): Promise<Partial<Config>> {
-	const path = `${process.cwd()}/ralph.config.ts`
+	const path = `${process.cwd()}/ralph.config.ts`;
 	try {
-		const mod = await import(path)
-		return mod.default ?? {}
+		const mod = await import(path);
+		return mod.default ?? {};
 	} catch {
-		return {}
+		return {};
 	}
 }
 
 function stripUndefined(obj: Partial<Config>) {
-	const result: Record<string, unknown> = {}
+	const result: Record<string, unknown> = {};
 	for (const [key, value] of Object.entries(obj)) {
-		if (value !== undefined) result[key] = value
+		if (value !== undefined) result[key] = value;
 	}
-	return result as Partial<Config>
+	return result as Partial<Config>;
 }

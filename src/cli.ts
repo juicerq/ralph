@@ -1,14 +1,14 @@
 #!/usr/bin/env bun
 
-import { loadConfig } from "./config"
-import { fetchIssues, runPlanner } from "./planner"
-import { selectIssues } from "./select"
-import { resolveConflict, runWorker, type WorkerIssue, type WorkerResult } from "./worker"
-import * as log from "./log"
-import { exec } from "./exec"
+import { loadConfig } from "./config";
+import { fetchIssues, runPlanner } from "./planner";
+import { selectIssues } from "./select";
+import { resolveConflict, runWorker, type WorkerIssue, type WorkerResult } from "./worker";
+import * as log from "./log";
+import { exec } from "./exec";
 
 async function main() {
-	const args = process.argv.slice(2)
+	const args = process.argv.slice(2);
 
 	if (args.includes("--help") || args.includes("-h")) {
 		console.log(`Usage: ralph [options]
@@ -19,173 +19,198 @@ Options:
   --model <name>       Default model: opus, sonnet (default: opus)
   --prompt <text>      Extra instructions for agents
   --retries <n>        Max retries per failed worker (default: 1)
-  -h, --help           Show this help`)
-		return
+  -h, --help           Show this help`);
+		return;
 	}
 
-	const flags = parseFlags(args)
-	const config = await loadConfig(flags)
+	const flags = parseFlags(args);
+	const config = await loadConfig(flags);
 
-	let issues = await fetchIssues(config.label)
+	let issues = await fetchIssues(config.label);
 	if (issues.length === 0) {
-		log.info(`No issues with label "${config.label}"`)
-		if (!process.stdin.isTTY) return
-		issues = await selectIssues()
-		if (issues.length === 0) return
+		log.info(`No issues with label "${config.label}"`);
+		if (!process.stdin.isTTY) return;
+		issues = await selectIssues();
+		if (issues.length === 0) return;
 	}
-	log.info(`Found ${issues.length} issue(s)`)
+	log.info(`Found ${issues.length} issue(s)`);
 
-	const plan = await runPlanner(issues)
+	const plan = await runPlanner(issues);
 	if (plan.length === 0) {
-		log.info("Planner selected no issues")
-		return
+		log.info("Planner selected no issues");
+		return;
 	}
-	log.info(`Plan: ${plan.length} issue(s) to implement`)
+	log.info(`Plan: ${plan.length} issue(s) to implement`);
 
-	await exec(["git", "worktree", "prune"])
+	await exec(["git", "worktree", "prune"]);
 
 	const enriched: WorkerIssue[] = plan.flatMap((p) => {
-		const issue = issues.find((i) => i.number === p.number)
-		if (!issue) return []
-		return [{ ...p, body: issue.body }]
-	})
+		const issue = issues.find((i) => i.number === p.number);
+		if (!issue) return [];
+		return [{ ...p, body: issue.body }];
+	});
 
-	const results = await runWorkers(enriched, config)
+	const results = await runWorkers(enriched, config);
 
-	const conflicts = results.filter((r) => r.status === "merge-failed")
+	const conflicts = results.filter((r) => r.status === "merge-failed");
 	if (conflicts.length > 0) {
-		log.info(`\nResolving ${conflicts.length} conflict(s)...`)
+		log.info(`\nResolving ${conflicts.length} conflict(s)...`);
 		for (const result of conflicts) {
-			log.status(result.issue, "resolving")
-			const resolved = await resolveConflict(result, config)
-			results[results.indexOf(result)] = resolved
-			log.status(resolved.issue, resolved.status === "success" ? "resolved" : "unresolved")
+			log.status(result.issue, "resolving");
+			const resolved = await resolveConflict(result, config);
+			results[results.indexOf(result)] = resolved;
+			log.status(resolved.issue, resolved.status === "success" ? "resolved" : "unresolved");
 			if (resolved.status === "success") {
-				await exec(["gh", "issue", "close", String(resolved.issue.number)]).catch(() => {})
+				await exec(["gh", "issue", "close", String(resolved.issue.number)]).catch(() => {});
 			}
 		}
 	}
 
-	log.summary(results)
+	log.summary(results);
 
-	const failures = results.filter((r) => r.status !== "success")
-	if (failures.length > 0) process.exit(1)
+	const failures = results.filter((r) => r.status !== "success");
+	if (failures.length > 0) process.exit(1);
 
-	await createPullRequest(results)
+	await createPullRequest(results);
 }
 
 async function createPullRequest(results: WorkerResult[]) {
-	const branch = await exec(["git", "rev-parse", "--abbrev-ref", "HEAD"])
-	const defaultBranch = await exec(["gh", "repo", "view", "--json", "defaultBranchRef", "--jq", ".defaultBranchRef.name"]).catch(() => "main")
+	const branch = await exec(["git", "rev-parse", "--abbrev-ref", "HEAD"]);
+	const defaultBranch = await exec([
+		"gh",
+		"repo",
+		"view",
+		"--json",
+		"defaultBranchRef",
+		"--jq",
+		".defaultBranchRef.name",
+	]).catch(() => "main");
 
-	if (branch === defaultBranch) return
+	if (branch === defaultBranch) return;
 
-	const successes = results.filter((r) => r.status === "success")
-	if (successes.length === 0) return
+	const successes = results.filter((r) => r.status === "success");
+	if (successes.length === 0) return;
 
 	const issueList = successes
 		.map((r) => `- Closes #${r.issue.number} — ${r.issue.title}`)
-		.join("\n")
+		.join("\n");
 
-	await exec(["git", "push", "-u", "origin", branch]).catch(() => {})
+	await exec(["git", "push", "-u", "origin", branch]).catch(() => {});
 
 	const url = await exec([
-		"gh", "pr", "create",
-		"--title", `feat: ${branch}`,
-		"--body", `## Issues\n\n${issueList}\n\n🤖 Generated by [ralph](https://github.com/juicerq/ralph)`,
-	]).catch(() => "")
+		"gh",
+		"pr",
+		"create",
+		"--title",
+		`feat: ${branch}`,
+		"--body",
+		`## Issues\n\n${issueList}\n\n🤖 Generated by [ralph](https://github.com/juicerq/ralph)`,
+	]).catch(() => "");
 
-	if (url) log.info(`\nPR: ${url}`)
+	if (url) log.info(`\nPR: ${url}`);
 }
 
-async function runWorkers(issues: WorkerIssue[], config: { concurrency: number } & Parameters<typeof runWorker>[1]) {
-	const results: WorkerResult[] = []
-	const queue = [...issues]
-	const running = new Set<Promise<void>>()
+async function runWorkers(
+	issues: WorkerIssue[],
+	config: { concurrency: number } & Parameters<typeof runWorker>[1],
+) {
+	const results: WorkerResult[] = [];
+	const queue = [...issues];
+	const running = new Set<Promise<void>>();
 
-	let mergeChain = Promise.resolve()
+	let mergeChain = Promise.resolve();
 	const mergeLocked = (branch: string) => {
 		const p = mergeChain.then(async () => {
 			try {
-				await exec(["git", "merge", branch])
+				await exec(["git", "merge", branch]);
 			} catch (e) {
-				await exec(["git", "merge", "--abort"]).catch(() => {})
-				throw e
+				await exec(["git", "merge", "--abort"]).catch(() => {});
+				throw e;
 			}
-		})
+		});
 		mergeChain = p.then(
 			() => {},
 			() => {},
-		)
-		return p
-	}
+		);
+		return p;
+	};
 
-	const completed = new Set<number>()
-	const failed = new Set<number>()
+	const completed = new Set<number>();
+	const failed = new Set<number>();
 
 	while (queue.length > 0 || running.size > 0) {
 		// Drain blocked issues whose dependencies failed
 		for (let i = queue.length - 1; i >= 0; i--) {
 			if (queue[i].dependsOn.some((d) => failed.has(d))) {
-				const blocked = queue.splice(i, 1)[0]
-				const dep = blocked.dependsOn.find((d) => failed.has(d))
-				results.push({ issue: blocked, status: "failed", error: `Dependency #${dep} failed`, branch: `ralph/${blocked.number}` })
-				failed.add(blocked.number)
-				log.status(blocked, `skipped (dependency #${dep} failed)`)
+				const blocked = queue.splice(i, 1)[0];
+				const dep = blocked.dependsOn.find((d) => failed.has(d));
+				results.push({
+					issue: blocked,
+					status: "failed",
+					error: `Dependency #${dep} failed`,
+					branch: `ralph/${blocked.number}`,
+				});
+				failed.add(blocked.number);
+				log.status(blocked, `skipped (dependency #${dep} failed)`);
 			}
 		}
 
 		// Pick next ready issue (all deps completed)
 		while (running.size < config.concurrency) {
-			const readyIdx = queue.findIndex((i) => i.dependsOn.every((d) => completed.has(d)))
-			if (readyIdx === -1) break
-			const issue = queue.splice(readyIdx, 1)[0]
-			log.status(issue, "starting")
+			const readyIdx = queue.findIndex((i) => i.dependsOn.every((d) => completed.has(d)));
+			if (readyIdx === -1) break;
+			const issue = queue.splice(readyIdx, 1)[0];
+			log.status(issue, "starting");
 
 			const p = (async () => {
-				let result = await runWorker(issue, config, mergeLocked)
-				let attempt = 1
+				let result = await runWorker(issue, config, mergeLocked);
+				let attempt = 1;
 				while (result.status === "failed" && attempt <= config.retries) {
-					log.status(issue, "retrying")
-					result = await runWorker(issue, config, mergeLocked)
-					attempt++
+					log.status(issue, "retrying");
+					result = await runWorker(issue, config, mergeLocked);
+					attempt++;
 				}
-				return result
+				return result;
 			})().then(async (result) => {
-				results.push(result)
+				results.push(result);
 				if (result.status === "success") {
-					completed.add(result.issue.number)
-					log.status(result.issue, "merged")
-					await exec(["gh", "issue", "close", String(result.issue.number)]).catch(() => {})
+					completed.add(result.issue.number);
+					log.status(result.issue, "merged");
+					await exec(["gh", "issue", "close", String(result.issue.number)]).catch(() => {});
 				} else {
-					failed.add(result.issue.number)
-					log.status(result.issue, result.status)
+					failed.add(result.issue.number);
+					log.status(result.issue, result.status);
 				}
-				running.delete(p)
-			})
-			running.add(p)
+				running.delete(p);
+			});
+			running.add(p);
 		}
 
 		if (running.size > 0) {
-			await Promise.race(running)
+			await Promise.race(running);
 		} else if (queue.length > 0) {
 			// Deadlock: remaining issues have circular dependencies
 			for (const issue of queue) {
-				results.push({ issue, status: "failed", error: "Circular dependency", branch: `ralph/${issue.number}` })
-				log.status(issue, "skipped (circular dependency)")
+				results.push({
+					issue,
+					status: "failed",
+					error: "Circular dependency",
+					branch: `ralph/${issue.number}`,
+				});
+				log.status(issue, "skipped (circular dependency)");
 			}
-			break
+			break;
 		}
 	}
 
-	return results
+	return results;
 }
 
 function parseFlags(args: string[]) {
-	const result: Record<string, string> = {}
+	const result: Record<string, string> = {};
 	for (let i = 0; i < args.length; i++) {
 		if (args[i].startsWith("--") && i + 1 < args.length) {
-			result[args[i].slice(2)] = args[++i]
+			result[args[i].slice(2)] = args[++i];
 		}
 	}
 	return {
@@ -194,10 +219,10 @@ function parseFlags(args: string[]) {
 		model: result.model,
 		prompt: result.prompt,
 		retries: result.retries ? Number(result.retries) : undefined,
-	}
+	};
 }
 
 main().catch((e) => {
-	console.error(e)
-	process.exit(1)
-})
+	console.error(e);
+	process.exit(1);
+});
