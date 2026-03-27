@@ -94,9 +94,26 @@ async function runWorkers(issues: WorkerIssue[], config: { concurrency: number }
 		return p
 	}
 
+	const completed = new Set<number>()
+	const failed = new Set<number>()
+
 	while (queue.length > 0 || running.size > 0) {
-		while (queue.length > 0 && running.size < config.concurrency) {
-			const issue = queue.shift()!
+		// Drain blocked issues whose dependencies failed
+		for (let i = queue.length - 1; i >= 0; i--) {
+			if (queue[i].dependsOn.some((d) => failed.has(d))) {
+				const blocked = queue.splice(i, 1)[0]
+				const dep = blocked.dependsOn.find((d) => failed.has(d))
+				results.push({ issue: blocked, status: "failed", error: `Dependency #${dep} failed`, branch: `ralph/${blocked.number}` })
+				failed.add(blocked.number)
+				log.status(blocked, `skipped (dependency #${dep} failed)`)
+			}
+		}
+
+		// Pick next ready issue (all deps completed)
+		while (running.size < config.concurrency) {
+			const readyIdx = queue.findIndex((i) => i.dependsOn.every((d) => completed.has(d)))
+			if (readyIdx === -1) break
+			const issue = queue.splice(readyIdx, 1)[0]
 			log.status(issue, "starting")
 
 			const p = (async () => {
@@ -110,9 +127,13 @@ async function runWorkers(issues: WorkerIssue[], config: { concurrency: number }
 				return result
 			})().then(async (result) => {
 				results.push(result)
-				log.status(result.issue, result.status === "success" ? "merged" : result.status)
 				if (result.status === "success") {
+					completed.add(result.issue.number)
+					log.status(result.issue, "merged")
 					await exec(["gh", "issue", "close", String(result.issue.number)]).catch(() => {})
+				} else {
+					failed.add(result.issue.number)
+					log.status(result.issue, result.status)
 				}
 				running.delete(p)
 			})
@@ -121,6 +142,13 @@ async function runWorkers(issues: WorkerIssue[], config: { concurrency: number }
 
 		if (running.size > 0) {
 			await Promise.race(running)
+		} else if (queue.length > 0) {
+			// Deadlock: remaining issues have circular dependencies
+			for (const issue of queue) {
+				results.push({ issue, status: "failed", error: "Circular dependency", branch: `ralph/${issue.number}` })
+				log.status(issue, "skipped (circular dependency)")
+			}
+			break
 		}
 	}
 

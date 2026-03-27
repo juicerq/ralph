@@ -9,7 +9,7 @@
 	"exports": {
 		".": "./src/config.ts"
 	},
-	"files": ["src"],
+	"files": ["src", "!src/**/*.test.ts"],
 	"keywords": ["claude", "ai", "agent", "github", "automation"],
 	"author": "jui",
 	"license": "MIT",

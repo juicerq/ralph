@@ -26,7 +26,8 @@ export function summary(results: WorkerResult[]) {
 					: red("[fail]")
 
 		const extra = r.error ? ` ${dim(r.error)}` : ""
-		console.log(`${tag} #${r.issue.number} ${r.issue.title}${extra}`)
+		const logHint = r.status !== "success" ? ` ${dim(`→ .ralph/logs/${r.issue.number}.log`)}` : ""
+		console.log(`${tag} #${r.issue.number} ${r.issue.title}${extra}${logHint}`)
 	}
 
 	const succeeded = results.filter((r) => r.status === "success").length

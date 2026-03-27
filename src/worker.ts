@@ -52,10 +52,12 @@ export async function runWorker(
 
 		const baseCommit = await exec(["git", "rev-parse", "HEAD"])
 
+		const logFile = `${process.cwd()}/.ralph/logs/${issue.number}.log`
 		const prompt = resuming ? buildResumePrompt(issue, config) : buildPrompt(issue, config)
 		await runClaude(prompt, {
 			model: resolveModel(issue.model),
 			cwd: worktreePath,
+			logFile,
 		})
 
 		const worktreeHead = await exec(["git", "-C", worktreePath, "rev-parse", "HEAD"])
@@ -147,6 +149,7 @@ export async function resolveConflict(
 
 		await runClaude(buildConflictPrompt(issue, conflicting), {
 			model: resolveModel(config.model),
+			logFile: `${process.cwd()}/.ralph/logs/${issue.number}-conflict.log`,
 		})
 
 		const remaining = await exec(["git", "diff", "--name-only", "--diff-filter=U"]).catch(() => "")

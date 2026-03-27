@@ -10,6 +10,7 @@ export type PlannedIssue = {
 	number: number
 	title: string
 	model: "opus" | "sonnet"
+	dependsOn: number[]
 }
 
 export async function fetchIssues(label: string) {
@@ -26,7 +27,7 @@ export async function fetchIssues(label: string) {
 
 export async function runPlanner(issues: Issue[]) {
 	if (issues.length === 1) {
-		return [{ number: issues[0].number, title: issues[0].title, model: "opus" as const }]
+		return [{ number: issues[0].number, title: issues[0].title, model: "opus" as const, dependsOn: [] }]
 	}
 
 	const prompt = buildPrompt(issues)
@@ -49,11 +50,13 @@ For each issue, assign a model:
 - "opus" for complex tasks (new features, refactoring, architecture changes)
 - "sonnet" for trivial tasks (typo fixes, renames, simple config changes, documentation)
 
+For each issue, list which other issues it depends on in "dependsOn" (empty array if none).
+
 Issues:
 ${list}
 
 Return ONLY a JSON array ordered by implementation priority, no other text:
-[{"number": 42, "title": "Add auth", "model": "opus"}]`
+[{"number": 42, "title": "Add auth", "model": "opus", "dependsOn": []}, {"number": 43, "title": "Use auth", "model": "sonnet", "dependsOn": [42]}]`
 }
 
 function extractPlan(output: string, issues: Issue[]) {
@@ -63,5 +66,10 @@ function extractPlan(output: string, issues: Issue[]) {
 	const parsed = JSON.parse(match[0]) as PlannedIssue[]
 	const validNumbers = new Set(issues.map((i) => i.number))
 
-	return parsed.filter((p) => validNumbers.has(p.number))
+	return parsed
+		.filter((p) => validNumbers.has(p.number))
+		.map((p) => ({
+			...p,
+			dependsOn: (p.dependsOn ?? []).filter((d) => validNumbers.has(d)),
+		}))
 }

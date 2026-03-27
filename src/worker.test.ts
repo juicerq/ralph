@@ -42,6 +42,7 @@ const issue: WorkerIssue = {
 	title: "Test issue",
 	body: "Test body",
 	model: "opus",
+	dependsOn: [],
 }
 
 const config: Config = {
