@@ -49,6 +49,7 @@ const config: Config = {
 	concurrency: 1,
 	model: "opus",
 	prompt: "Test.",
+	retries: 1,
 }
 
 function simulateCommit() {

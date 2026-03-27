@@ -3,6 +3,7 @@ export type Config = {
 	concurrency: number
 	model: string
 	prompt: string
+	retries: number
 }
 
 const DEFAULTS: Config = {
@@ -10,6 +11,7 @@ const DEFAULTS: Config = {
 	concurrency: 1,
 	model: "opus",
 	prompt: "Implement the issue. Run tests before committing if applicable.",
+	retries: 1,
 }
 
 export async function loadConfig(flags: Partial<Config>) {

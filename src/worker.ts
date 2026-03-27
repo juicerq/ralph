@@ -98,6 +98,8 @@ ${config.prompt}
 
 A previous agent was working on this issue in this worktree. Before continuing, check git status and git diff to understand what was already done. Then complete the remaining work.
 
+IMPORTANT: You MUST commit your changes before finishing. If you don't commit, your work will be lost.
+
 After implementing:
 1. Make sure the code compiles and typechecks
 2. Run tests if applicable
@@ -110,6 +112,8 @@ function buildPrompt(issue: WorkerIssue, config: Config) {
 ${issue.body || "No description provided."}
 
 ${config.prompt}
+
+IMPORTANT: You MUST commit your changes before finishing. If you don't commit, your work will be lost.
 
 After implementing:
 1. Make sure the code compiles and typechecks

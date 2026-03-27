@@ -18,6 +18,7 @@ Options:
   --concurrency <n>    Max parallel agents (default: 1)
   --model <name>       Default model: opus, sonnet (default: opus)
   --prompt <text>      Extra instructions for agents
+  --retries <n>        Max retries per failed worker (default: 1)
   -h, --help           Show this help`)
 		return
 	}
@@ -98,7 +99,16 @@ async function runWorkers(issues: WorkerIssue[], config: { concurrency: number }
 			const issue = queue.shift()!
 			log.status(issue, "starting")
 
-			const p = runWorker(issue, config, mergeLocked).then(async (result) => {
+			const p = (async () => {
+				let result = await runWorker(issue, config, mergeLocked)
+				let attempt = 1
+				while (result.status === "failed" && attempt <= config.retries) {
+					log.status(issue, "retrying")
+					result = await runWorker(issue, config, mergeLocked)
+					attempt++
+				}
+				return result
+			})().then(async (result) => {
 				results.push(result)
 				log.status(result.issue, result.status === "success" ? "merged" : result.status)
 				if (result.status === "success") {
@@ -129,6 +139,7 @@ function parseFlags(args: string[]) {
 		concurrency: result.concurrency ? Number(result.concurrency) : undefined,
 		model: result.model,
 		prompt: result.prompt,
+		retries: result.retries ? Number(result.retries) : undefined,
 	}
 }
 
