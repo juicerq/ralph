@@ -25,6 +25,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - TypeScript strict mode
 - Tab indentation
 - Conventional commits: `feat:`, `fix:`, `refactor:`, `chore:`, etc.
+- Separate every statement with a blank line — each variable declaration, each call, each condition gets its own block. Don't stack statements together.
 
 ## Architecture
 

@@ -22,6 +22,7 @@ import * as log from "./log";
 describe("info", () => {
 	test("logs a dimmed message", () => {
 		log.info("hello");
+
 		expect(logged.length).toBe(1);
 		expect(logged[0]).toContain("hello");
 	});
@@ -30,6 +31,7 @@ describe("info", () => {
 describe("status", () => {
 	test("logs issue number, title, and status", () => {
 		log.status({ number: 42, title: "Fix bug" }, "starting");
+
 		expect(logged.length).toBe(1);
 		expect(logged[0]).toContain("#42");
 		expect(logged[0]).toContain("Fix bug");
@@ -54,17 +56,17 @@ describe("summary", () => {
 		log.summary(results);
 
 		const output = logged.join("\n");
+
 		expect(output).toContain("1 succeeded, 1 failed");
 	});
 
 	test("shows ok tag for success", () => {
-		const results: WorkerResult[] = [
-			{ issue, status: "success", branch: "ralph/1" },
-		];
+		const results: WorkerResult[] = [{ issue, status: "success", branch: "ralph/1" }];
 
 		log.summary(results);
 
 		const output = logged.join("\n");
+
 		expect(output).toContain("[ok]");
 		expect(output).toContain("#1");
 	});
@@ -77,6 +79,7 @@ describe("summary", () => {
 		log.summary(results);
 
 		const output = logged.join("\n");
+
 		expect(output).toContain("[fail]");
 		expect(output).toContain("something broke");
 	});
@@ -89,28 +92,27 @@ describe("summary", () => {
 		log.summary(results);
 
 		const output = logged.join("\n");
+
 		expect(output).toContain("[conflict]");
 	});
 
 	test("shows log file hint for non-success", () => {
-		const results: WorkerResult[] = [
-			{ issue, status: "failed", error: "err", branch: "ralph/1" },
-		];
+		const results: WorkerResult[] = [{ issue, status: "failed", error: "err", branch: "ralph/1" }];
 
 		log.summary(results);
 
 		const output = logged.join("\n");
+
 		expect(output).toContain(".ralph/logs/1.log");
 	});
 
 	test("does not show log hint for success", () => {
-		const results: WorkerResult[] = [
-			{ issue, status: "success", branch: "ralph/1" },
-		];
+		const results: WorkerResult[] = [{ issue, status: "success", branch: "ralph/1" }];
 
 		log.summary(results);
 
 		const output = logged.join("\n");
+
 		expect(output).not.toContain(".ralph/logs/");
 	});
 
@@ -118,6 +120,7 @@ describe("summary", () => {
 		log.summary([]);
 
 		const output = logged.join("\n");
+
 		expect(output).toContain("0 succeeded, 0 failed");
 	});
 });

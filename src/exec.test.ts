@@ -83,6 +83,7 @@ describe("parseStreamJson", () => {
 			// Re-import to pick up mocked Bun.spawn
 			// We test the function directly by calling it
 			const { runClaude } = await import("./exec");
+
 			const result = await runClaude("test prompt", { model: "opus" });
 			expect(result).toBe("final answer");
 		} finally {
@@ -115,6 +116,7 @@ describe("parseStreamJson", () => {
 			}));
 
 			const { runClaude } = await import("./exec");
+
 			const result = await runClaude("test", { model: "opus" });
 			expect(result).toBe("the real answer");
 		} finally {
@@ -152,6 +154,7 @@ describe("parseStreamJson", () => {
 			}));
 
 			const { runClaude } = await import("./exec");
+
 			const result = await runClaude("test", { model: "opus" });
 			expect(result).toBe("");
 		} finally {

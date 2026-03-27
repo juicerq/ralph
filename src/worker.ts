@@ -1,6 +1,6 @@
+import { type Config, resolveModel } from "./config";
 import { exec, runClaude } from "./exec";
 import type { PlannedIssue } from "./planner";
-import { resolveModel, type Config } from "./config";
 
 export type WorkerIssue = PlannedIssue & { body: string };
 
@@ -20,15 +20,23 @@ export async function runWorker(
 	const worktreePath = `${process.cwd()}/.ralph/${issue.number}`;
 
 	try {
-		const branchExists = await exec(["git", "rev-parse", "--verify", branch]).then(
+		const branchExists = await exec([
+			"git",
+			"rev-parse",
+			"--verify",
+			branch,
+		]).then(
 			() => true,
 			() => false,
 		);
 
 		if (branchExists) {
-			const worktreeExists = await exec(["git", "worktree", "list", "--porcelain"]).then((out) =>
-				out.includes(worktreePath),
-			);
+			const worktreeExists = await exec([
+				"git",
+				"worktree",
+				"list",
+				"--porcelain",
+			]).then((out) => out.includes(worktreePath));
 
 			if (!worktreeExists) {
 				await exec(["git", "worktree", "add", worktreePath, branch]);
@@ -40,17 +48,30 @@ export async function runWorker(
 		const baseCommit = await exec(["git", "rev-parse", "HEAD"]);
 
 		const logFile = `${process.cwd()}/.ralph/logs/${issue.number}.log`;
-		const prompt = branchExists ? buildResumePrompt(issue, config) : buildPrompt(issue, config);
+		const prompt = branchExists
+			? buildResumePrompt(issue, config)
+			: buildPrompt(issue, config);
 		await runClaude(prompt, {
 			model: resolveModel(config.model),
 			cwd: worktreePath,
 			logFile,
 		});
 
-		const worktreeHead = await exec(["git", "-C", worktreePath, "rev-parse", "HEAD"]);
+		const worktreeHead = await exec([
+			"git",
+			"-C",
+			worktreePath,
+			"rev-parse",
+			"HEAD",
+		]);
 		if (baseCommit === worktreeHead) {
 			await cleanup(worktreePath, branch);
-			return { issue, status: "failed", error: "No commits made", branch };
+			return {
+				issue,
+				status: "failed" as const,
+				error: "No commits made",
+				branch,
+			};
 		}
 
 		try {
@@ -59,19 +80,19 @@ export async function runWorker(
 			await removeWorktree(worktreePath);
 			return {
 				issue,
-				status: "merge-failed",
+				status: "merge-failed" as const,
 				error: `Merge conflict. Branch ${branch} preserved.`,
 				branch,
 			};
 		}
 
 		await cleanup(worktreePath, branch);
-		return { issue, status: "success", branch };
+		return { issue, status: "success" as const, branch };
 	} catch (e) {
 		await removeWorktree(worktreePath);
 		return {
 			issue,
-			status: "failed",
+			status: "failed" as const,
 			error: e instanceof Error ? e.message : String(e),
 			branch,
 		};
@@ -114,21 +135,32 @@ export async function resolveConflict(result: WorkerResult, config: Config) {
 	const { branch, issue } = result;
 
 	try {
-		const mergeOutcome = await exec(["git", "merge", branch, "--no-commit", "--no-ff"])
+		const mergeOutcome = await exec([
+			"git",
+			"merge",
+			branch,
+			"--no-commit",
+			"--no-ff",
+		])
 			.then(() => "clean" as const)
 			.catch(() => "conflict" as const);
 
 		if (mergeOutcome === "clean") {
 			await exec(["git", "commit", "--no-edit"]);
 			await exec(["git", "branch", "-D", branch]).catch(() => {});
-			return { issue, status: "success", branch };
+			return { issue, status: "success" as const, branch };
 		}
 
-		const conflicting = await exec(["git", "diff", "--name-only", "--diff-filter=U"]);
+		const conflicting = await exec([
+			"git",
+			"diff",
+			"--name-only",
+			"--diff-filter=U",
+		]);
 		if (!conflicting) {
 			await exec(["git", "commit", "--no-edit"]);
 			await exec(["git", "branch", "-D", branch]).catch(() => {});
-			return { issue, status: "success", branch };
+			return { issue, status: "success" as const, branch };
 		}
 
 		await runClaude(buildConflictPrompt(issue, conflicting), {
@@ -136,12 +168,17 @@ export async function resolveConflict(result: WorkerResult, config: Config) {
 			logFile: `${process.cwd()}/.ralph/logs/${issue.number}-conflict.log`,
 		});
 
-		const remaining = await exec(["git", "diff", "--name-only", "--diff-filter=U"]).catch(() => "");
+		const remaining = await exec([
+			"git",
+			"diff",
+			"--name-only",
+			"--diff-filter=U",
+		]).catch(() => "");
 		if (remaining) {
 			await exec(["git", "merge", "--abort"]).catch(() => {});
 			return {
 				issue,
-				status: "merge-failed",
+				status: "merge-failed" as const,
 				error: `Conflict resolution failed. Branch ${branch} preserved.`,
 				branch,
 			};
@@ -149,12 +186,12 @@ export async function resolveConflict(result: WorkerResult, config: Config) {
 
 		await exec(["git", "commit", "--no-edit"]);
 		await exec(["git", "branch", "-D", branch]).catch(() => {});
-		return { issue, status: "success", branch };
+		return { issue, status: "success" as const, branch };
 	} catch (e) {
 		await exec(["git", "merge", "--abort"]).catch(() => {});
 		return {
 			issue,
-			status: "merge-failed",
+			status: "merge-failed" as const,
 			error: e instanceof Error ? e.message : String(e),
 			branch,
 		};
@@ -183,5 +220,7 @@ async function cleanup(worktreePath: string, branch: string) {
 }
 
 async function removeWorktree(worktreePath: string) {
-	await exec(["git", "worktree", "remove", worktreePath, "--force"]).catch(() => {});
+	await exec(["git", "worktree", "remove", worktreePath, "--force"]).catch(
+		() => {},
+	);
 }

@@ -26,7 +26,9 @@ const DEFAULTS: Config = {
 
 export async function loadConfig(flags: Partial<Config>) {
 	const fileConfig = await loadConfigFile();
+
 	const defined = Object.fromEntries(Object.entries(flags).filter(([, v]) => v !== undefined));
+
 	return { ...DEFAULTS, ...fileConfig, ...defined };
 }
 
