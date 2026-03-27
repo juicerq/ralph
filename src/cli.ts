@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-import { loadConfig } from "./config";
+import { loadConfig, type Config } from "./config";
 import { fetchIssues, runPlanner } from "./planner";
 import { selectIssues } from "./select";
 import { resolveConflict, runWorker, type WorkerIssue, type WorkerResult } from "./worker";
@@ -75,16 +75,12 @@ Options:
 }
 
 async function createPullRequest(results: WorkerResult[]) {
-	const branch = await exec(["git", "rev-parse", "--abbrev-ref", "HEAD"]);
-	const defaultBranch = await exec([
-		"gh",
-		"repo",
-		"view",
-		"--json",
-		"defaultBranchRef",
-		"--jq",
-		".defaultBranchRef.name",
-	]).catch(() => "main");
+	const [branch, defaultBranch] = await Promise.all([
+		exec(["git", "rev-parse", "--abbrev-ref", "HEAD"]),
+		exec(["gh", "repo", "view", "--json", "defaultBranchRef", "--jq", ".defaultBranchRef.name"]).catch(
+			() => "main",
+		),
+	]);
 
 	if (branch === defaultBranch) return;
 
@@ -110,10 +106,7 @@ async function createPullRequest(results: WorkerResult[]) {
 	if (url) log.info(`\nPR: ${url}`);
 }
 
-async function runWorkers(
-	issues: WorkerIssue[],
-	config: { concurrency: number } & Parameters<typeof runWorker>[1],
-) {
+async function runWorkers(issues: WorkerIssue[], config: Config) {
 	const results: WorkerResult[] = [];
 	const queue = [...issues];
 	const running = new Set<Promise<void>>();
@@ -139,7 +132,6 @@ async function runWorkers(
 	const failed = new Set<number>();
 
 	while (queue.length > 0 || running.size > 0) {
-		// Drain blocked issues whose dependencies failed
 		for (let i = queue.length - 1; i >= 0; i--) {
 			if (queue[i].dependsOn.some((d) => failed.has(d))) {
 				const blocked = queue.splice(i, 1)[0];
@@ -155,7 +147,6 @@ async function runWorkers(
 			}
 		}
 
-		// Pick next ready issue (all deps completed)
 		while (running.size < config.concurrency) {
 			const readyIdx = queue.findIndex((i) => i.dependsOn.every((d) => completed.has(d)));
 			if (readyIdx === -1) break;

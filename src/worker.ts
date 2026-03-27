@@ -1,6 +1,6 @@
 import { exec, runClaude } from "./exec";
 import type { PlannedIssue } from "./planner";
-import type { Config } from "./config";
+import { resolveModel, type Config } from "./config";
 
 export type WorkerIssue = PlannedIssue & { body: string };
 
@@ -11,21 +11,11 @@ export type WorkerResult = {
 	branch: string;
 };
 
-const MODEL_MAP: Record<string, string> = {
-	opus: "claude-opus-4-6",
-	sonnet: "claude-sonnet-4-6",
-	haiku: "claude-haiku-4-5-20251001",
-};
-
-function resolveModel(model: string) {
-	return MODEL_MAP[model] ?? model;
-}
-
 export async function runWorker(
 	issue: WorkerIssue,
 	config: Config,
 	merge: (branch: string) => Promise<void>,
-): Promise<WorkerResult> {
+) {
 	const branch = `ralph/${issue.number}`;
 	const worktreePath = `${process.cwd()}/.ralph/${issue.number}`;
 
@@ -35,17 +25,13 @@ export async function runWorker(
 			() => false,
 		);
 
-		let resuming = false;
 		if (branchExists) {
 			const worktreeExists = await exec(["git", "worktree", "list", "--porcelain"]).then((out) =>
 				out.includes(worktreePath),
 			);
 
-			if (worktreeExists) {
-				resuming = true;
-			} else {
+			if (!worktreeExists) {
 				await exec(["git", "worktree", "add", worktreePath, branch]);
-				resuming = true;
 			}
 		} else {
 			await exec(["git", "worktree", "add", worktreePath, "-b", branch]);
@@ -54,7 +40,7 @@ export async function runWorker(
 		const baseCommit = await exec(["git", "rev-parse", "HEAD"]);
 
 		const logFile = `${process.cwd()}/.ralph/logs/${issue.number}.log`;
-		const prompt = resuming ? buildResumePrompt(issue, config) : buildPrompt(issue, config);
+		const prompt = branchExists ? buildResumePrompt(issue, config) : buildPrompt(issue, config);
 		await runClaude(prompt, {
 			model: resolveModel(config.model),
 			cwd: worktreePath,
@@ -124,7 +110,7 @@ After implementing:
 3. Commit your changes with a descriptive message referencing issue #${issue.number}`;
 }
 
-export async function resolveConflict(result: WorkerResult, config: Config): Promise<WorkerResult> {
+export async function resolveConflict(result: WorkerResult, config: Config) {
 	const { branch, issue } = result;
 
 	try {

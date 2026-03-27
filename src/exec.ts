@@ -1,3 +1,5 @@
+import { mkdir } from "fs/promises";
+
 export async function exec(cmd: string[], opts?: { cwd?: string }) {
 	const proc = Bun.spawn(cmd, {
 		cwd: opts?.cwd,
@@ -48,7 +50,7 @@ export async function runClaude(
 	let logWriter: ReturnType<ReturnType<typeof Bun.file>["writer"]> | undefined;
 	if (opts.logFile) {
 		const dir = opts.logFile.substring(0, opts.logFile.lastIndexOf("/"));
-		await import("fs/promises").then((fs) => fs.mkdir(dir, { recursive: true }));
+		await mkdir(dir, { recursive: true });
 		logWriter = Bun.file(opts.logFile).writer();
 	}
 
@@ -93,9 +95,7 @@ function parseStreamJson(raw: string) {
 					}
 				}
 			}
-		} catch {
-			// skip non-JSON lines
-		}
+		} catch {}
 	}
 
 	return result.trim();

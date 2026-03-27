@@ -6,6 +6,16 @@ export type Config = {
 	retries: number;
 };
 
+const MODEL_MAP: Record<string, string> = {
+	opus: "claude-opus-4-6",
+	sonnet: "claude-sonnet-4-6",
+	haiku: "claude-haiku-4-5-20251001",
+};
+
+export function resolveModel(model: string) {
+	return MODEL_MAP[model] ?? model;
+}
+
 const DEFAULTS: Config = {
 	label: "ralph",
 	concurrency: 1,
@@ -16,7 +26,8 @@ const DEFAULTS: Config = {
 
 export async function loadConfig(flags: Partial<Config>) {
 	const fileConfig = await loadConfigFile();
-	return { ...DEFAULTS, ...fileConfig, ...stripUndefined(flags) };
+	const defined = Object.fromEntries(Object.entries(flags).filter(([, v]) => v !== undefined));
+	return { ...DEFAULTS, ...fileConfig, ...defined };
 }
 
 async function loadConfigFile(): Promise<Partial<Config>> {
@@ -27,12 +38,4 @@ async function loadConfigFile(): Promise<Partial<Config>> {
 	} catch {
 		return {};
 	}
-}
-
-function stripUndefined(obj: Partial<Config>) {
-	const result: Record<string, unknown> = {};
-	for (const [key, value] of Object.entries(obj)) {
-		if (value !== undefined) result[key] = value;
-	}
-	return result as Partial<Config>;
 }

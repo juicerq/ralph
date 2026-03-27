@@ -1,3 +1,4 @@
+import { resolveModel } from "./config";
 import { exec, runClaude } from "./exec";
 
 export type Issue = {
@@ -36,14 +37,14 @@ export async function runPlanner(issues: Issue[]) {
 	}
 
 	const prompt = buildPrompt(issues);
-	const output = await runClaude(prompt, { model: "claude-opus-4-6" });
+	const output = await runClaude(prompt, { model: resolveModel("opus") });
 
 	return extractPlan(output, issues);
 }
 
 function buildPrompt(issues: Issue[]) {
 	const list = issues
-		.map((i) => `## #${i.number}: ${i.title}\n${i.body ?? "No description."}`)
+		.map((i) => `## #${i.number}: ${i.title}\n${i.body || "No description provided."}`)
 		.join("\n\n");
 
 	return `You are a planning agent. Analyze these GitHub issues and determine dependencies.
