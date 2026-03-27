@@ -34,20 +34,25 @@ export async function runWorker(
 			() => true,
 			() => false,
 		)
+
+		let resuming = false
 		if (branchExists) {
-			return {
-				issue,
-				status: "failed",
-				error: `Branch ${branch} already exists. Remove it first.`,
-				branch,
+			const worktreeExists = await exec(["git", "worktree", "list", "--porcelain"])
+				.then((out) => out.includes(worktreePath))
+
+			if (worktreeExists) {
+				resuming = true
+			} else {
+				await exec(["git", "worktree", "add", worktreePath, branch])
+				resuming = true
 			}
+		} else {
+			await exec(["git", "worktree", "add", worktreePath, "-b", branch])
 		}
 
 		const baseCommit = await exec(["git", "rev-parse", "HEAD"])
 
-		await exec(["git", "worktree", "add", worktreePath, "-b", branch])
-
-		const prompt = buildPrompt(issue, config)
+		const prompt = resuming ? buildResumePrompt(issue, config) : buildPrompt(issue, config)
 		await runClaude(prompt, {
 			model: resolveModel(issue.model),
 			cwd: worktreePath,
@@ -82,6 +87,21 @@ export async function runWorker(
 			branch,
 		}
 	}
+}
+
+function buildResumePrompt(issue: WorkerIssue, config: Config) {
+	return `You are resuming work on GitHub issue #${issue.number}: ${issue.title}
+
+${issue.body || "No description provided."}
+
+${config.prompt}
+
+A previous agent was working on this issue in this worktree. Before continuing, check git status and git diff to understand what was already done. Then complete the remaining work.
+
+After implementing:
+1. Make sure the code compiles and typechecks
+2. Run tests if applicable
+3. Commit your changes with a descriptive message referencing issue #${issue.number}`
 }
 
 function buildPrompt(issue: WorkerIssue, config: Config) {

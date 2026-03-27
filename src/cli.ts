@@ -59,6 +59,9 @@ Options:
 			const resolved = await resolveConflict(result, config)
 			results[results.indexOf(result)] = resolved
 			log.status(resolved.issue, resolved.status === "success" ? "resolved" : "unresolved")
+			if (resolved.status === "success") {
+				await exec(["gh", "issue", "close", String(resolved.issue.number)]).catch(() => {})
+			}
 		}
 	}
 
@@ -95,9 +98,12 @@ async function runWorkers(issues: WorkerIssue[], config: { concurrency: number }
 			const issue = queue.shift()!
 			log.status(issue, "starting")
 
-			const p = runWorker(issue, config, mergeLocked).then((result) => {
+			const p = runWorker(issue, config, mergeLocked).then(async (result) => {
 				results.push(result)
 				log.status(result.issue, result.status === "success" ? "merged" : result.status)
+				if (result.status === "success") {
+					await exec(["gh", "issue", "close", String(result.issue.number)]).catch(() => {})
+				}
 				running.delete(p)
 			})
 			running.add(p)
