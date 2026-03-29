@@ -3,6 +3,7 @@
 import { type Config, loadConfig } from "./config";
 import { exec } from "./exec";
 import * as log from "./log";
+import { closeCompletedParents, fetchParents } from "./parent";
 import { fetchIssues, runPlanner } from "./planner";
 import { selectIssues } from "./select";
 import { resolveConflict, runWorker, type WorkerIssue, type WorkerResult } from "./worker";
@@ -51,6 +52,8 @@ async function main() {
 
 	log.info(`Plan: ${plan.length} issue(s) to implement`);
 
+	const parents = await fetchParents(plan.map((p) => p.number)).catch(() => new Map());
+
 	await exec(["git", "worktree", "prune"]);
 
 	const enriched: WorkerIssue[] = plan.flatMap((p) => {
@@ -84,6 +87,8 @@ async function main() {
 	}
 
 	log.summary(results);
+
+	await closeCompletedParents(parents, results).catch(() => {});
 
 	const failures = results.filter((r) => r.status !== "success");
 
