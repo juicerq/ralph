@@ -28,6 +28,8 @@ async function main() {
 
 	const config = await loadConfig(flags);
 
+	log.start();
+
 	let issues = await fetchIssues(config.label);
 
 	if (issues.length === 0) {
@@ -64,12 +66,16 @@ async function main() {
 		return [{ ...p, body: issue.body }];
 	});
 
+	log.startWorkers();
+
 	const results = await runWorkers(enriched, config);
+
+	log.endWorkers(results);
 
 	const conflicts = results.filter((r) => r.status === "merge-failed");
 
 	if (conflicts.length > 0) {
-		log.info(`\nResolving ${conflicts.length} conflict(s)...`);
+		log.info(`Resolving ${conflicts.length} conflict(s)...`);
 
 		for (const result of conflicts) {
 			log.status(result.issue, "resolving");
@@ -92,9 +98,15 @@ async function main() {
 
 	const failures = results.filter((r) => r.status !== "success");
 
-	if (failures.length > 0) process.exit(1);
+	if (failures.length > 0) {
+		log.end("Some issues failed");
+
+		process.exit(1);
+	}
 
 	await createPullRequest(results);
+
+	log.end();
 }
 
 async function createPullRequest(results: WorkerResult[]) {
@@ -197,14 +209,16 @@ async function runWorkers(issues: WorkerIssue[], config: Config) {
 			log.status(issue, "starting");
 
 			const p = (async () => {
-				let result = await runWorker(issue, config, mergeLocked);
+				const onTool = (name: string, args: string) => log.toolCall(issue.number, name, args);
+
+				let result = await runWorker(issue, config, mergeLocked, false, onTool);
 
 				let attempt = 1;
 
 				while (result.status === "failed" && attempt <= config.retries) {
 					log.status(issue, "retrying");
 
-					result = await runWorker(issue, config, mergeLocked);
+					result = await runWorker(issue, config, mergeLocked, true, onTool);
 
 					attempt++;
 				}

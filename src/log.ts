@@ -1,47 +1,71 @@
+import { intro, log as clack, outro, taskLog as clackTaskLog } from "@clack/prompts";
+
 import type { WorkerResult } from "./worker";
 
-const green = (s: string) => `\x1b[32m${s}\x1b[0m`;
+let tl: ReturnType<typeof clackTaskLog> | null = null;
 
-const red = (s: string) => `\x1b[31m${s}\x1b[0m`;
-
-const yellow = (s: string) => `\x1b[33m${s}\x1b[0m`;
-
-const dim = (s: string) => `\x1b[2m${s}\x1b[0m`;
-
-const bold = (s: string) => `\x1b[1m${s}\x1b[0m`;
+export function start() {
+	intro("ralph");
+}
 
 export function info(msg: string) {
-	console.log(dim(msg));
+	clack.info(msg);
+}
+
+export function startWorkers() {
+	tl = clackTaskLog({ title: "Implementing issues" });
 }
 
 export function status(issue: { number: number; title: string }, msg: string) {
-	console.log(`${dim(`#${issue.number}`)} ${issue.title} ${dim("—")} ${msg}`);
+	if (tl) {
+		tl.message(`#${issue.number} ${issue.title} — ${msg}`);
+
+		return;
+	}
+
+	clack.step(`#${issue.number} ${issue.title} — ${msg}`);
 }
 
-export function summary(results: WorkerResult[]) {
-	console.log(`\n${bold("--- Results ---")}`);
+export function toolCall(issueNumber: number, name: string, args: string) {
+	tl?.message(`#${issueNumber} ── ${name.padEnd(12)} ${args}`);
+}
 
-	for (const r of results) {
-		const tag =
-			r.status === "success"
-				? green("[ok]")
-				: r.status === "merge-failed"
-					? yellow("[conflict]")
-					: red("[fail]");
-
-		const extra = r.error ? ` ${dim(r.error)}` : "";
-
-		const logHint =
-			r.status !== "success"
-				? ` ${dim(`→ .ralph/logs/${r.issue.number}.log`)}`
-				: "";
-
-		console.log(`${tag} #${r.issue.number} ${r.issue.title}${extra}${logHint}`);
-	}
+export function endWorkers(results: WorkerResult[]) {
+	if (!tl) return;
 
 	const succeeded = results.filter((r) => r.status === "success").length;
 
 	const failed = results.length - succeeded;
 
-	console.log(`\n${succeeded} succeeded, ${failed} failed`);
+	if (failed === 0) {
+		tl.success(`${succeeded} issue(s) implemented`);
+	} else {
+		tl.error(`${succeeded} succeeded, ${failed} failed`);
+	}
+
+	tl = null;
+}
+
+export function summary(results: WorkerResult[]) {
+	for (const r of results) {
+		if (r.status === "success") {
+			clack.success(`#${r.issue.number} ${r.issue.title}`);
+
+			continue;
+		}
+
+		const extra = r.error ? ` — ${r.error}` : "";
+
+		const logHint = ` → .ralph/logs/${r.issue.number}.log`;
+
+		if (r.status === "merge-failed") {
+			clack.warning(`#${r.issue.number} ${r.issue.title}${extra}${logHint}`);
+		} else {
+			clack.error(`#${r.issue.number} ${r.issue.title}${extra}${logHint}`);
+		}
+	}
+}
+
+export function end(msg?: string) {
+	outro(msg ?? "Done");
 }

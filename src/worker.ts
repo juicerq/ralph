@@ -15,6 +15,8 @@ export async function runWorker(
 	issue: WorkerIssue,
 	config: Config,
 	merge: (branch: string) => Promise<void>,
+	resume = false,
+	onToolCall?: (name: string, args: string) => void,
 ) {
 	const branch = `ralph/${issue.number}`;
 
@@ -50,15 +52,24 @@ export async function runWorker(
 
 		const logFile = `${process.cwd()}/.ralph/logs/${issue.number}.log`;
 
-		const prompt = branchExists
-			? buildResumePrompt(issue, config)
-			: buildPrompt(issue, config);
-
-		await runClaude(prompt, {
+		const claudeOpts = {
 			model: resolveModel(config.model),
 			cwd: worktreePath,
 			logFile,
-		});
+			onToolCall,
+		};
+
+		const fullPrompt = branchExists
+			? buildResumePrompt(issue, config)
+			: buildPrompt(issue, config);
+
+		if (resume) {
+			await runClaude(buildRetryPrompt(issue), { ...claudeOpts, resume: true }).catch(() =>
+				runClaude(fullPrompt, claudeOpts),
+			);
+		} else {
+			await runClaude(fullPrompt, claudeOpts);
+		}
 
 		const worktreeHead = await exec([
 			"git",
@@ -121,6 +132,10 @@ function buildResumePrompt(issue: WorkerIssue, config: Config) {
 		2. Run tests if applicable
 		3. Commit your changes with a descriptive message referencing issue #${issue.number}
 	`;
+}
+
+function buildRetryPrompt(issue: WorkerIssue) {
+	return `Your previous attempt to implement issue #${issue.number} did not produce valid commits. Check what went wrong, fix any issues, and commit your changes.`;
 }
 
 function buildPrompt(issue: WorkerIssue, config: Config) {
