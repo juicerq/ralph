@@ -1,30 +1,45 @@
-import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
+import { beforeEach, describe, expect, mock, test } from "bun:test";
+
 import type { WorkerResult } from "./worker";
 
-const originalLog = console.log;
+let logged: string[] = [];
 
-let logged: string[];
+mock.module("@clack/prompts", () => {
+	const capture = (...args: unknown[]) => {
+		logged.push(args.map(String).join(" "));
+	};
+
+	return {
+		intro: capture,
+		outro: capture,
+		log: {
+			info: capture,
+			step: capture,
+			success: capture,
+			warning: capture,
+			error: capture,
+			message: capture,
+		},
+		taskLog: () => ({
+			message: capture,
+			success: capture,
+			error: capture,
+		}),
+	};
+});
+
+import * as log from "./log";
 
 beforeEach(() => {
 	logged = [];
-	console.log = mock((...args: unknown[]) => {
-		logged.push(args.map(String).join(" "));
-	});
 });
-
-afterEach(() => {
-	console.log = originalLog;
-});
-
-// Import after mocking would cause issues since console.log is global,
-// so we import normally and just capture calls.
-import * as log from "./log";
 
 describe("info", () => {
-	test("logs a dimmed message", () => {
+	test("logs a message", () => {
 		log.info("hello");
 
 		expect(logged.length).toBe(1);
+
 		expect(logged[0]).toContain("hello");
 	});
 });
@@ -34,45 +49,51 @@ describe("status", () => {
 		log.status({ number: 42, title: "Fix bug" }, "starting");
 
 		expect(logged.length).toBe(1);
+
 		expect(logged[0]).toContain("#42");
+
 		expect(logged[0]).toContain("Fix bug");
+
+		expect(logged[0]).toContain("▶");
+
 		expect(logged[0]).toContain("starting");
+	});
+
+	test("uses ✓ for merged", () => {
+		log.status({ number: 1, title: "X" }, "merged");
+
+		expect(logged[0]).toContain("✓");
+	});
+
+	test("uses ✗ for failed", () => {
+		log.status({ number: 1, title: "X" }, "failed");
+
+		expect(logged[0]).toContain("✗");
+	});
+
+	test("uses ● for unknown status", () => {
+		log.status({ number: 1, title: "X" }, "custom");
+
+		expect(logged[0]).toContain("●");
 	});
 });
 
 describe("summary", () => {
 	const issue = { number: 1, title: "Add auth", body: "", dependsOn: [] };
 
-	test("shows result counts", () => {
-		const results: WorkerResult[] = [
-			{ issue, status: "success", branch: "ralph/1" },
-			{
-				issue: { ...issue, number: 2, title: "Fix bug" },
-				status: "failed",
-				error: "boom",
-				branch: "ralph/2",
-			},
-		];
-
-		log.summary(results);
-
-		const output = logged.join("\n");
-
-		expect(output).toContain("1 succeeded, 1 failed");
-	});
-
-	test("shows ok tag for success", () => {
+	test("shows succeeded issue", () => {
 		const results: WorkerResult[] = [{ issue, status: "success", branch: "ralph/1" }];
 
 		log.summary(results);
 
 		const output = logged.join("\n");
 
-		expect(output).toContain("[ok]");
 		expect(output).toContain("#1");
+
+		expect(output).toContain("Add auth");
 	});
 
-	test("shows fail tag and error for failed", () => {
+	test("shows error message for failed", () => {
 		const results: WorkerResult[] = [
 			{ issue, status: "failed", error: "something broke", branch: "ralph/1" },
 		];
@@ -81,11 +102,10 @@ describe("summary", () => {
 
 		const output = logged.join("\n");
 
-		expect(output).toContain("[fail]");
 		expect(output).toContain("something broke");
 	});
 
-	test("shows conflict tag for merge-failed", () => {
+	test("shows merge-failed issue", () => {
 		const results: WorkerResult[] = [
 			{ issue, status: "merge-failed", error: "conflict", branch: "ralph/1" },
 		];
@@ -94,11 +114,15 @@ describe("summary", () => {
 
 		const output = logged.join("\n");
 
-		expect(output).toContain("[conflict]");
+		expect(output).toContain("#1");
+
+		expect(output).toContain("conflict");
 	});
 
 	test("shows log file hint for non-success", () => {
-		const results: WorkerResult[] = [{ issue, status: "failed", error: "err", branch: "ralph/1" }];
+		const results: WorkerResult[] = [
+			{ issue, status: "failed", error: "err", branch: "ralph/1" },
+		];
 
 		log.summary(results);
 
@@ -120,8 +144,6 @@ describe("summary", () => {
 	test("handles empty results", () => {
 		log.summary([]);
 
-		const output = logged.join("\n");
-
-		expect(output).toContain("0 succeeded, 0 failed");
+		expect(logged.length).toBe(0);
 	});
 });

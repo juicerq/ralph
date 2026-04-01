@@ -16,14 +16,29 @@ export function startWorkers() {
 	tl = clackTaskLog({ title: "Implementing issues" });
 }
 
+const statusSymbols: Record<string, string> = {
+	merged: "✓",
+	resolved: "✓",
+	starting: "▶",
+	retrying: "▶",
+	resolving: "▶",
+	failed: "✗",
+	"merge-failed": "✗",
+	unresolved: "✗",
+};
+
 export function status(issue: { number: number; title: string }, msg: string) {
+	const symbol = statusSymbols[msg] ?? "●";
+
+	const formatted = `#${issue.number} ${issue.title}  ${symbol} ${msg}`;
+
 	if (tl) {
-		tl.message(`#${issue.number} ${issue.title} — ${msg}`);
+		tl.message(formatted);
 
 		return;
 	}
 
-	clack.step(`#${issue.number} ${issue.title} — ${msg}`);
+	clack.step(formatted);
 }
 
 export function toolCall(issueNumber: number, name: string, args: string) {
