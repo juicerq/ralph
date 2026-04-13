@@ -1,5 +1,8 @@
 # @juicerq/swarm
 
+[![npm](https://img.shields.io/npm/v/@juicerq/swarm)](https://www.npmjs.com/package/@juicerq/swarm)
+[![GitHub](https://img.shields.io/github/license/juicerq/swarm)](https://github.com/juicerq/swarm)
+
 Orchestrate Claude Code agents to implement GitHub issues in parallel.
 
 ## Workflow
@@ -33,10 +36,12 @@ bunx @juicerq/swarm --label my-label --concurrency 5 --model sonnet
 
 | Flag | Default | Description |
 |------|---------|-------------|
+| `--issue` | — | Run only this issue and its sub-issues |
 | `--label` | `swarm` | GitHub issue label to filter |
 | `--concurrency` | `1` | Max parallel agents |
 | `--model` | `opus` | Default model (planner may override per issue) |
 | `--prompt` | built-in | Extra instructions for implementer agents |
+| `--retries` | `1` | Max retries per failed worker |
 
 ### Configuration
 

@@ -36,4 +36,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `planner.ts` — dependency graph extraction via Claude
 - `worker.ts` — single issue implementation in isolated git worktree
 - `config.ts` — config loading (CLI flags > swarm.config.ts > defaults)
+- `exec.ts` — subprocess execution helper
+- `select.ts` — interactive issue selector (when no labeled issues found)
+- `parent.ts` — parent issue tracking and auto-close
+- `log.ts` — structured logging and progress display
 - Workers run in `.swarm/<n>/` worktrees; merges happen serially to avoid conflicts
+
+## Release
+
+1. Bump version in `package.json`
+2. `npm publish`
+3. Commit and push
+
+## Docs
+
+- Keep `README.md` CLI flags table in sync with `cli.ts --help`
