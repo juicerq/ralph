@@ -13,6 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Run all tests: `bun test`
 - Run a single test file: `bun test src/planner.test.ts`
 - Tests use Bun's native test runner (`bun:test`)
+- **TDD-focused**: Always write tests for new functionality. Extract logic to separate modules for testability.
 
 ## Lint & Format
 
@@ -31,6 +32,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - CLI orchestrator that spawns parallel Claude Code agents to implement GitHub issues
 - `cli.ts` — entry point and orchestration
+- `branch.ts` — interactive branch selection prompt
 - `planner.ts` — dependency graph extraction via Claude
 - `worker.ts` — single issue implementation in isolated git worktree
 - `config.ts` — config loading (CLI flags > ralph.config.ts > defaults)
