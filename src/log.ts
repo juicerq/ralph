@@ -5,7 +5,7 @@ import type { WorkerResult } from "./worker";
 let tl: ReturnType<typeof clackTaskLog> | null = null;
 
 export function start() {
-	intro("ralph");
+	intro("swarm");
 }
 
 export function info(msg: string) {
@@ -80,7 +80,7 @@ export function summary(results: WorkerResult[]) {
 
 		const extra = r.error ? ` — ${r.error}` : "";
 
-		const logHint = ` → .ralph/logs/${r.issue.number}.log`;
+		const logHint = ` → .swarm/logs/${r.issue.number}.log`;
 
 		if (r.status === "merge-failed") {
 			clack.warning(`#${r.issue.number} ${r.issue.title}${extra}${logHint}`);

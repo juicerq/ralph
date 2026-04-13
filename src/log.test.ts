@@ -82,7 +82,7 @@ describe("summary", () => {
 	const issue = { number: 1, title: "Add auth", body: "", dependsOn: [] };
 
 	test("shows succeeded issue", () => {
-		const results: WorkerResult[] = [{ issue, status: "success", branch: "ralph/1" }];
+		const results: WorkerResult[] = [{ issue, status: "success", branch: "swarm/1" }];
 
 		log.summary(results);
 
@@ -95,7 +95,7 @@ describe("summary", () => {
 
 	test("shows error message for failed", () => {
 		const results: WorkerResult[] = [
-			{ issue, status: "failed", error: "something broke", branch: "ralph/1" },
+			{ issue, status: "failed", error: "something broke", branch: "swarm/1" },
 		];
 
 		log.summary(results);
@@ -107,7 +107,7 @@ describe("summary", () => {
 
 	test("shows merge-failed issue", () => {
 		const results: WorkerResult[] = [
-			{ issue, status: "merge-failed", error: "conflict", branch: "ralph/1" },
+			{ issue, status: "merge-failed", error: "conflict", branch: "swarm/1" },
 		];
 
 		log.summary(results);
@@ -120,23 +120,23 @@ describe("summary", () => {
 	});
 
 	test("shows log file hint for non-success", () => {
-		const results: WorkerResult[] = [{ issue, status: "failed", error: "err", branch: "ralph/1" }];
+		const results: WorkerResult[] = [{ issue, status: "failed", error: "err", branch: "swarm/1" }];
 
 		log.summary(results);
 
 		const output = logged.join("\n");
 
-		expect(output).toContain(".ralph/logs/1.log");
+		expect(output).toContain(".swarm/logs/1.log");
 	});
 
 	test("does not show log hint for success", () => {
-		const results: WorkerResult[] = [{ issue, status: "success", branch: "ralph/1" }];
+		const results: WorkerResult[] = [{ issue, status: "success", branch: "swarm/1" }];
 
 		log.summary(results);
 
 		const output = logged.join("\n");
 
-		expect(output).not.toContain(".ralph/logs/");
+		expect(output).not.toContain(".swarm/logs/");
 	});
 
 	test("handles empty results", () => {

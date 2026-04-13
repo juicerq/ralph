@@ -35,5 +35,5 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `branch.ts` — interactive branch selection prompt
 - `planner.ts` — dependency graph extraction via Claude
 - `worker.ts` — single issue implementation in isolated git worktree
-- `config.ts` — config loading (CLI flags > ralph.config.ts > defaults)
-- Workers run in `.ralph/<n>/` worktrees; merges happen serially to avoid conflicts
+- `config.ts` — config loading (CLI flags > swarm.config.ts > defaults)
+- Workers run in `.swarm/<n>/` worktrees; merges happen serially to avoid conflicts

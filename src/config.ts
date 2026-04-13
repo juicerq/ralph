@@ -17,7 +17,7 @@ export function resolveModel(model: string) {
 }
 
 const DEFAULTS: Config = {
-	label: "ralph",
+	label: "swarm",
 	concurrency: 1,
 	model: "opus",
 	prompt: "Implement the issue. Run tests before committing if applicable.",
@@ -33,7 +33,7 @@ export async function loadConfig(flags: Partial<Config>) {
 }
 
 async function loadConfigFile(): Promise<Partial<Config>> {
-	const path = `${process.cwd()}/ralph.config.ts`;
+	const path = `${process.cwd()}/swarm.config.ts`;
 	try {
 		const mod = await import(path);
 		return mod.default ?? {};

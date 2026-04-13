@@ -18,9 +18,9 @@ export async function runWorker(
 	resume = false,
 	onToolCall?: (name: string, args: string) => void,
 ) {
-	const branch = `ralph/${issue.number}`;
+	const branch = `swarm/${issue.number}`;
 
-	const worktreePath = `${process.cwd()}/.ralph/${issue.number}`;
+	const worktreePath = `${process.cwd()}/.swarm/${issue.number}`;
 
 	try {
 		const branchExists = await exec(["git", "rev-parse", "--verify", branch]).then(
@@ -42,7 +42,7 @@ export async function runWorker(
 
 		const baseCommit = await exec(["git", "rev-parse", "HEAD"]);
 
-		const logFile = `${process.cwd()}/.ralph/logs/${issue.number}.log`;
+		const logFile = `${process.cwd()}/.swarm/logs/${issue.number}.log`;
 
 		const claudeOpts = {
 			model: resolveModel(config.model),
@@ -183,7 +183,7 @@ export async function resolveConflict(result: WorkerResult, config: Config) {
 
 		await runClaude(buildConflictPrompt(issue, conflicting), {
 			model: resolveModel(config.model),
-			logFile: `${process.cwd()}/.ralph/logs/${issue.number}-conflict.log`,
+			logFile: `${process.cwd()}/.swarm/logs/${issue.number}-conflict.log`,
 		});
 
 		const remaining = await exec(["git", "diff", "--name-only", "--diff-filter=U"]).catch(() => "");
@@ -216,7 +216,7 @@ export async function resolveConflict(result: WorkerResult, config: Config) {
 
 function buildConflictPrompt(issue: WorkerIssue, conflictingFiles: string) {
 	return `
-	You are resolving merge conflicts. Branch ralph/${issue.number} implements issue #${issue.number}: ${issue.title}
+	You are resolving merge conflicts. Branch swarm/${issue.number} implements issue #${issue.number}: ${issue.title}
 
 	${issue.body || "No description provided."}
 

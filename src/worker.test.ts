@@ -46,7 +46,7 @@ const issue: WorkerIssue = {
 };
 
 const config: Config = {
-	label: "ralph",
+	label: "swarm",
 	concurrency: 1,
 	model: "opus",
 	prompt: "Test.",
@@ -69,7 +69,7 @@ function realMerge() {
 }
 
 beforeEach(async () => {
-	testDir = await mkdtemp(join(tmpdir(), "ralph-test-"));
+	testDir = await mkdtemp(join(tmpdir(), "swarm-test-"));
 	originalCwd = process.cwd();
 	process.chdir(testDir);
 
@@ -98,8 +98,8 @@ describe("runWorker", () => {
 	});
 
 	test("resume: reuses existing worktree with uncommitted changes", async () => {
-		const worktreePath = join(testDir, ".ralph", "99");
-		await git(["worktree", "add", worktreePath, "-b", "ralph/99"], testDir);
+		const worktreePath = join(testDir, ".swarm", "99");
+		await git(["worktree", "add", worktreePath, "-b", "swarm/99"], testDir);
 		await writeFile(join(worktreePath, "partial.txt"), "in progress");
 		await git(["add", "."], worktreePath);
 
@@ -115,8 +115,8 @@ describe("runWorker", () => {
 	});
 
 	test("resume: recreates worktree for orphan branch", async () => {
-		const worktreePath = join(testDir, ".ralph", "99");
-		await git(["worktree", "add", worktreePath, "-b", "ralph/99"], testDir);
+		const worktreePath = join(testDir, ".swarm", "99");
+		await git(["worktree", "add", worktreePath, "-b", "swarm/99"], testDir);
 		await writeFile(join(worktreePath, "prev.txt"), "previous");
 		await git(["add", "."], worktreePath);
 		await git(["commit", "-m", "previous work"], worktreePath);
@@ -167,8 +167,8 @@ describe("runWorker", () => {
 
 describe("resolveConflict", () => {
 	async function setupDivergent(file: string, mainContent: string, branchContent: string) {
-		const branch = "ralph/99";
-		const worktreePath = join(testDir, ".ralph", "99");
+		const branch = "swarm/99";
+		const worktreePath = join(testDir, ".swarm", "99");
 
 		await git(["worktree", "add", worktreePath, "-b", branch], testDir);
 		await writeFile(join(worktreePath, file), branchContent);
@@ -184,8 +184,8 @@ describe("resolveConflict", () => {
 	}
 
 	test("clean merge: no conflict between branches", async () => {
-		const branch = "ralph/99";
-		const worktreePath = join(testDir, ".ralph", "99");
+		const branch = "swarm/99";
+		const worktreePath = join(testDir, ".swarm", "99");
 
 		await git(["worktree", "add", worktreePath, "-b", branch], testDir);
 		await writeFile(join(worktreePath, "feature.txt"), "new feature");

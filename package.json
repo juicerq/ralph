@@ -1,10 +1,10 @@
 {
-	"name": "@juicerq/ralph",
+	"name": "@juicerq/swarm",
 	"version": "0.12.1",
 	"type": "module",
 	"description": "Orchestrate Claude Code agents to implement GitHub issues in parallel",
 	"bin": {
-		"ralph": "src/cli.ts"
+		"swarm": "src/cli.ts"
 	},
 	"exports": {
 		".": "./src/config.ts"

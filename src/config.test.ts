@@ -11,7 +11,7 @@ let testDir: string;
 let originalCwd: string;
 
 beforeEach(async () => {
-	testDir = await mkdtemp(join(tmpdir(), "ralph-config-test-"));
+	testDir = await mkdtemp(join(tmpdir(), "swarm-config-test-"));
 	originalCwd = process.cwd();
 	process.chdir(testDir);
 });
@@ -25,7 +25,7 @@ describe("loadConfig", () => {
 	test("returns defaults when no flags or config file", async () => {
 		const config = await loadConfig({});
 
-		expect(config.label).toBe("ralph");
+		expect(config.label).toBe("swarm");
 		expect(config.concurrency).toBe(1);
 		expect(config.model).toBe("opus");
 		expect(config.retries).toBe(1);
@@ -52,13 +52,13 @@ describe("loadConfig", () => {
 			concurrency: undefined,
 		});
 
-		expect(config.label).toBe("ralph");
+		expect(config.label).toBe("swarm");
 		expect(config.concurrency).toBe(1);
 	});
 
 	test("config file values are used", async () => {
 		await writeFile(
-			join(testDir, "ralph.config.ts"),
+			join(testDir, "swarm.config.ts"),
 			`export default { label: "from-file", concurrency: 2 };`,
 		);
 
@@ -72,7 +72,7 @@ describe("loadConfig", () => {
 
 	test("flags override config file values", async () => {
 		await writeFile(
-			join(testDir, "ralph.config.ts"),
+			join(testDir, "swarm.config.ts"),
 			`export default { label: "from-file", model: "sonnet" };`,
 		);
 
@@ -84,7 +84,7 @@ describe("loadConfig", () => {
 
 	test("partial flags with config file: merge correctly", async () => {
 		await writeFile(
-			join(testDir, "ralph.config.ts"),
+			join(testDir, "swarm.config.ts"),
 			`export default { concurrency: 3, retries: 5 };`,
 		);
 
@@ -92,6 +92,6 @@ describe("loadConfig", () => {
 
 		expect(config.concurrency).toBe(8);
 		expect(config.retries).toBe(5);
-		expect(config.label).toBe("ralph");
+		expect(config.label).toBe("swarm");
 	});
 });
