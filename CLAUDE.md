@@ -13,7 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Run all tests: `bun test`
 - Run a single test file: `bun test src/planner.test.ts`
 - Tests use Bun's native test runner (`bun:test`)
-- **TDD-focused**: Always write tests for new functionality. Extract logic to separate modules for testability.
+- **TDD (red, green, refactor)**: Write failing test first, then minimal code to pass, then refactor. Extract logic to separate modules for testability.
 
 ## Lint & Format
 
