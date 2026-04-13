@@ -140,6 +140,19 @@ describe("runWorker", () => {
 		expect(merge).not.toHaveBeenCalled();
 	});
 
+	test("already implemented returns already-done", async () => {
+		mockRunClaude.mockImplementation(
+			async () => "The issue is [ALREADY_IMPLEMENTED] in the codebase.",
+		);
+		const merge = mock(async () => {});
+
+		const result = await runWorker(issue, config, merge);
+
+		expect(result.status).toBe("already-done");
+		expect(result.error).toBeUndefined();
+		expect(merge).not.toHaveBeenCalled();
+	});
+
 	test("merge conflict returns merge-failed", async () => {
 		simulateCommit();
 		const merge = async () => {

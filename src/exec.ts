@@ -110,10 +110,7 @@ export async function runClaude(
 		logWriter.end();
 	}
 
-	const [exitCode, stderr] = await Promise.all([
-		proc.exited,
-		new Response(proc.stderr).text(),
-	]);
+	const [exitCode, stderr] = await Promise.all([proc.exited, new Response(proc.stderr).text()]);
 
 	const stdout = chunks.join("");
 

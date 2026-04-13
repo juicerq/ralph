@@ -31,6 +31,61 @@ export async function fetchIssues(label: string) {
 	return JSON.parse(json) as Issue[];
 }
 
+export async function fetchIssueWithSubIssues(issueNumber: number) {
+	const repoJson = await exec(["gh", "repo", "view", "--json", "owner,name"]);
+
+	const { owner, name } = JSON.parse(repoJson);
+
+	const query = `{
+		repository(owner: "${owner.login}", name: "${name}") {
+			issue(number: ${issueNumber}) {
+				number
+				title
+				body
+				state
+				subIssues(first: 50) {
+					nodes {
+						number
+						title
+						body
+						state
+					}
+				}
+			}
+		}
+	}`;
+
+	const result = await exec(["gh", "api", "graphql", "-f", `query=${query}`]);
+
+	const data = JSON.parse(result).data.repository.issue;
+
+	if (!data) return [];
+
+	const issues: Issue[] = [];
+
+	const subIssues = data.subIssues?.nodes ?? [];
+
+	const openSubIssues = subIssues.filter((s: { state: string }) => s.state === "OPEN");
+
+	if (openSubIssues.length > 0) {
+		for (const sub of openSubIssues) {
+			issues.push({
+				number: sub.number,
+				title: sub.title,
+				body: sub.body ?? "",
+			});
+		}
+	} else if (data.state === "OPEN") {
+		issues.push({
+			number: data.number,
+			title: data.title,
+			body: data.body ?? "",
+		});
+	}
+
+	return issues;
+}
+
 export async function runPlanner(issues: Issue[]) {
 	if (issues.length === 1) {
 		return [{ number: issues[0].number, title: issues[0].title, dependsOn: [] }];

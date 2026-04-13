@@ -120,9 +120,7 @@ describe("summary", () => {
 	});
 
 	test("shows log file hint for non-success", () => {
-		const results: WorkerResult[] = [
-			{ issue, status: "failed", error: "err", branch: "ralph/1" },
-		];
+		const results: WorkerResult[] = [{ issue, status: "failed", error: "err", branch: "ralph/1" }];
 
 		log.summary(results);
 

@@ -6,7 +6,7 @@ export type WorkerIssue = PlannedIssue & { body: string };
 
 export type WorkerResult = {
 	issue: WorkerIssue;
-	status: "success" | "merge-failed" | "failed";
+	status: "success" | "merge-failed" | "failed" | "already-done";
 	error?: string;
 	branch: string;
 };
@@ -23,23 +23,15 @@ export async function runWorker(
 	const worktreePath = `${process.cwd()}/.ralph/${issue.number}`;
 
 	try {
-		const branchExists = await exec([
-			"git",
-			"rev-parse",
-			"--verify",
-			branch,
-		]).then(
+		const branchExists = await exec(["git", "rev-parse", "--verify", branch]).then(
 			() => true,
 			() => false,
 		);
 
 		if (branchExists) {
-			const worktreeExists = await exec([
-				"git",
-				"worktree",
-				"list",
-				"--porcelain",
-			]).then((out) => out.includes(worktreePath));
+			const worktreeExists = await exec(["git", "worktree", "list", "--porcelain"]).then((out) =>
+				out.includes(worktreePath),
+			);
 
 			if (!worktreeExists) {
 				await exec(["git", "worktree", "add", worktreePath, branch]);
@@ -59,28 +51,30 @@ export async function runWorker(
 			onToolCall,
 		};
 
-		const fullPrompt = branchExists
-			? buildResumePrompt(issue, config)
-			: buildPrompt(issue, config);
+		const fullPrompt = branchExists ? buildResumePrompt(issue, config) : buildPrompt(issue, config);
+
+		let response: string;
 
 		if (resume) {
-			await runClaude(buildRetryPrompt(issue), { ...claudeOpts, resume: true }).catch(() =>
-				runClaude(fullPrompt, claudeOpts),
+			response = await runClaude(buildRetryPrompt(issue), { ...claudeOpts, resume: true }).catch(
+				() => runClaude(fullPrompt, claudeOpts),
 			);
 		} else {
-			await runClaude(fullPrompt, claudeOpts);
+			response = await runClaude(fullPrompt, claudeOpts);
 		}
 
-		const worktreeHead = await exec([
-			"git",
-			"-C",
-			worktreePath,
-			"rev-parse",
-			"HEAD",
-		]);
+		const worktreeHead = await exec(["git", "-C", worktreePath, "rev-parse", "HEAD"]);
 
 		if (baseCommit === worktreeHead) {
 			await cleanup(worktreePath, branch);
+
+			if (response.includes("[ALREADY_IMPLEMENTED]")) {
+				return {
+					issue,
+					status: "already-done" as const,
+					branch,
+				};
+			}
 
 			return {
 				issue,
@@ -127,6 +121,8 @@ function buildResumePrompt(issue: WorkerIssue, config: Config) {
 
 		IMPORTANT: You MUST commit your changes before finishing. If you don't commit, your work will be lost.
 
+		If the issue is already fully implemented in the codebase with all acceptance criteria met, do NOT commit anything. Instead, include the marker [ALREADY_IMPLEMENTED] in your response.
+
 		After implementing:
 		1. Make sure the code compiles and typechecks
 		2. Run tests if applicable
@@ -135,7 +131,9 @@ function buildResumePrompt(issue: WorkerIssue, config: Config) {
 }
 
 function buildRetryPrompt(issue: WorkerIssue) {
-	return `Your previous attempt to implement issue #${issue.number} did not produce valid commits. Check what went wrong, fix any issues, and commit your changes.`;
+	return `Your previous attempt to implement issue #${issue.number} did not produce valid commits. Check what went wrong, fix any issues, and commit your changes.
+
+If the issue is already fully implemented in the codebase with all acceptance criteria met, do NOT commit anything. Instead, include the marker [ALREADY_IMPLEMENTED] in your response.`;
 }
 
 function buildPrompt(issue: WorkerIssue, config: Config) {
@@ -148,6 +146,8 @@ function buildPrompt(issue: WorkerIssue, config: Config) {
 
 	IMPORTANT: You MUST commit your changes before finishing. If you don't commit, your work will be lost.
 
+	If the issue is already fully implemented in the codebase with all acceptance criteria met, do NOT commit anything. Instead, include the marker [ALREADY_IMPLEMENTED] in your response.
+
 	After implementing:
 	1. Make sure the code compiles and typechecks
 	2. Run tests if applicable
@@ -159,13 +159,7 @@ export async function resolveConflict(result: WorkerResult, config: Config) {
 	const { branch, issue } = result;
 
 	try {
-		const mergeOutcome = await exec([
-			"git",
-			"merge",
-			branch,
-			"--no-commit",
-			"--no-ff",
-		])
+		const mergeOutcome = await exec(["git", "merge", branch, "--no-commit", "--no-ff"])
 			.then(() => "clean" as const)
 			.catch(() => "conflict" as const);
 
@@ -177,12 +171,7 @@ export async function resolveConflict(result: WorkerResult, config: Config) {
 			return { issue, status: "success" as const, branch };
 		}
 
-		const conflicting = await exec([
-			"git",
-			"diff",
-			"--name-only",
-			"--diff-filter=U",
-		]);
+		const conflicting = await exec(["git", "diff", "--name-only", "--diff-filter=U"]);
 
 		if (!conflicting) {
 			await exec(["git", "commit", "--no-edit"]);
@@ -197,12 +186,7 @@ export async function resolveConflict(result: WorkerResult, config: Config) {
 			logFile: `${process.cwd()}/.ralph/logs/${issue.number}-conflict.log`,
 		});
 
-		const remaining = await exec([
-			"git",
-			"diff",
-			"--name-only",
-			"--diff-filter=U",
-		]).catch(() => "");
+		const remaining = await exec(["git", "diff", "--name-only", "--diff-filter=U"]).catch(() => "");
 
 		if (remaining) {
 			await exec(["git", "merge", "--abort"]).catch(() => {});
@@ -255,7 +239,5 @@ async function cleanup(worktreePath: string, branch: string) {
 }
 
 async function removeWorktree(worktreePath: string) {
-	await exec(["git", "worktree", "remove", worktreePath, "--force"]).catch(
-		() => {},
-	);
+	await exec(["git", "worktree", "remove", worktreePath, "--force"]).catch(() => {});
 }

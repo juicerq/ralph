@@ -19,6 +19,7 @@ export function startWorkers() {
 const statusSymbols: Record<string, string> = {
 	merged: "✓",
 	resolved: "✓",
+	"already done": "✓",
 	starting: "▶",
 	retrying: "▶",
 	resolving: "▶",
@@ -48,7 +49,9 @@ export function toolCall(issueNumber: number, name: string, args: string) {
 export function endWorkers(results: WorkerResult[]) {
 	if (!tl) return;
 
-	const succeeded = results.filter((r) => r.status === "success").length;
+	const succeeded = results.filter(
+		(r) => r.status === "success" || r.status === "already-done",
+	).length;
 
 	const failed = results.length - succeeded;
 
@@ -65,6 +68,12 @@ export function summary(results: WorkerResult[]) {
 	for (const r of results) {
 		if (r.status === "success") {
 			clack.success(`#${r.issue.number} ${r.issue.title}`);
+
+			continue;
+		}
+
+		if (r.status === "already-done") {
+			clack.info(`#${r.issue.number} ${r.issue.title} — already implemented`);
 
 			continue;
 		}

@@ -4,7 +4,7 @@ import { type Config, loadConfig } from "./config";
 import { exec } from "./exec";
 import * as log from "./log";
 import { closeCompletedParents, fetchParents } from "./parent";
-import { fetchIssues, runPlanner } from "./planner";
+import { fetchIssueWithSubIssues, fetchIssues, runPlanner } from "./planner";
 import { selectIssues } from "./select";
 import { resolveConflict, runWorker, type WorkerIssue, type WorkerResult } from "./worker";
 
@@ -15,6 +15,7 @@ async function main() {
 		console.log(`Usage: ralph [options]
 
 		Options:
+		--issue <n>          Run only this issue and its sub-issues
 		--label <name>       Issue label (default: ralph)
 		--concurrency <n>    Max parallel agents (default: 1)
 		--model <name>       Default model: opus, sonnet (default: opus)
@@ -30,9 +31,17 @@ async function main() {
 
 	log.start();
 
-	let issues = await fetchIssues(config.label);
+	let issues = flags.issue
+		? await fetchIssueWithSubIssues(flags.issue)
+		: await fetchIssues(config.label);
 
 	if (issues.length === 0) {
+		if (flags.issue) {
+			log.info(`Issue #${flags.issue} not found or has no sub-issues`);
+
+			return;
+		}
+
 		log.info(`No issues with label "${config.label}"`);
 
 		if (!process.stdin.isTTY) return;
@@ -96,7 +105,7 @@ async function main() {
 
 	await closeCompletedParents(parents, results).catch(() => {});
 
-	const failures = results.filter((r) => r.status !== "success");
+	const failures = results.filter((r) => r.status !== "success" && r.status !== "already-done");
 
 	if (failures.length > 0) {
 		log.end("Some issues failed");
@@ -227,10 +236,10 @@ async function runWorkers(issues: WorkerIssue[], config: Config) {
 			})().then(async (result) => {
 				results.push(result);
 
-				if (result.status === "success") {
+				if (result.status === "success" || result.status === "already-done") {
 					completed.add(result.issue.number);
 
-					log.status(result.issue, "merged");
+					log.status(result.issue, result.status === "success" ? "merged" : "already done");
 
 					await exec(["gh", "issue", "close", String(result.issue.number)]).catch(() => {});
 				} else {
@@ -275,6 +284,7 @@ function parseFlags(args: string[]) {
 	}
 
 	return {
+		issue: result.issue ? Number(result.issue) : undefined,
 		label: result.label,
 		concurrency: result.concurrency ? Number(result.concurrency) : undefined,
 		model: result.model,
