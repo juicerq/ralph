@@ -1,14 +1,17 @@
-import { describe, expect, mock, test } from "bun:test";
+import { beforeEach, describe, expect, mock, test } from "bun:test";
 import type { Issue } from "./planner";
 
 const mockRunClaude = mock();
 
-mock.module("./exec", () => ({
-	exec: mock(),
+mock.module("./claude", () => ({
 	runClaude: mockRunClaude,
 }));
 
 const { runPlanner } = await import("./planner");
+
+beforeEach(() => {
+	mockRunClaude.mockReset();
+});
 
 const issues: Issue[] = [
 	{ number: 1, title: "Add auth", body: "Auth system" },
@@ -60,5 +63,19 @@ describe("runPlanner", () => {
 		mockRunClaude.mockImplementation(async () => "I don't know what to do");
 
 		expect(runPlanner([issues[0], issues[1]])).rejects.toThrow("invalid JSON");
+	});
+
+	test("extracts the JSON array even when Claude wraps it in prose", async () => {
+		mockRunClaude.mockImplementation(
+			async () =>
+				'Here is the plan:\n```json\n[{"number": 1, "title": "Add auth", "dependsOn": [2]}, {"number": 2, "title": "Fix typo", "dependsOn": []}]\n```\nDone.',
+		);
+
+		const result = await runPlanner([issues[0], issues[1]]);
+
+		expect(result).toEqual([
+			{ number: 1, title: "Add auth", dependsOn: [2] },
+			{ number: 2, title: "Fix typo", dependsOn: [] },
+		]);
 	});
 });

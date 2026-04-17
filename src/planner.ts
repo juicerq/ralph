@@ -1,5 +1,6 @@
+import { runClaude } from "./claude";
 import { resolveModel } from "./config";
-import { exec, runClaude } from "./exec";
+import { exec } from "./exec";
 
 export type Issue = {
 	number: number;

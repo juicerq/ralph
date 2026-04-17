@@ -1,4 +1,4 @@
-import { describe, test, expect, mock, beforeEach } from "bun:test";
+import { describe, test, expect, mock, beforeEach, afterEach } from "bun:test";
 
 const mockExec = mock();
 
@@ -8,18 +8,39 @@ mock.module("./exec", () => ({
 	exec: mockExec,
 }));
 
+const noop = () => {};
+
+const noopTaskLog = () => ({ message: noop, success: noop, error: noop });
+
 mock.module("@clack/prompts", () => ({
 	text: mockText,
+	intro: noop,
+	outro: noop,
+	log: {
+		info: noop,
+		step: noop,
+		success: noop,
+		warning: noop,
+		error: noop,
+		message: noop,
+	},
+	taskLog: noopTaskLog,
 }));
 
 const { promptBranch } = await import("./branch");
 
 describe("promptBranch", () => {
+	const originalIsTTY = process.stdin.isTTY;
+
 	beforeEach(() => {
 		mockExec.mockReset();
 		mockText.mockReset();
 
 		(process.stdin as any).isTTY = true;
+	});
+
+	afterEach(() => {
+		(process.stdin as any).isTTY = originalIsTTY;
 	});
 
 	test("skips prompt in non-TTY environment", async () => {
@@ -94,8 +115,8 @@ describe("promptBranch", () => {
 
 		await promptBranch();
 
-		const checkoutCalls = mockExec.mock.calls.filter(
-			(call: string[][]) => call[0].includes("checkout"),
+		const checkoutCalls = mockExec.mock.calls.filter((call: string[][]) =>
+			call[0].includes("checkout"),
 		);
 
 		expect(checkoutCalls).toHaveLength(0);
@@ -114,14 +135,14 @@ describe("promptBranch", () => {
 
 		await promptBranch();
 
-		const checkoutCalls = mockExec.mock.calls.filter(
-			(call: string[][]) => call[0].includes("checkout"),
+		const checkoutCalls = mockExec.mock.calls.filter((call: string[][]) =>
+			call[0].includes("checkout"),
 		);
 
 		expect(checkoutCalls).toHaveLength(0);
 	});
 
-	test("uses master as default when gh command fails", async () => {
+	test("falls back to main when gh command fails", async () => {
 		mockExec.mockImplementation((cmd: string[]) => {
 			if (cmd.includes("rev-parse")) return Promise.resolve("main");
 

@@ -5,18 +5,17 @@ type ParentIssue = {
 	number: number;
 };
 
-let repoCache: { owner: string; name: string } | null = null;
+type Repo = {
+	owner: string;
+	name: string;
+};
 
-async function getRepo() {
-	if (repoCache) return repoCache;
-
+async function getRepo(): Promise<Repo> {
 	const json = await exec(["gh", "repo", "view", "--json", "owner,name"]);
 
 	const { owner, name } = JSON.parse(json);
 
-	repoCache = { owner: owner.login, name };
-
-	return repoCache;
+	return { owner: owner.login, name };
 }
 
 export async function fetchParents(issueNumbers: number[]) {
@@ -47,10 +46,8 @@ export async function fetchParents(issueNumbers: number[]) {
 	return parents;
 }
 
-async function allSubIssuesCompleted(parentNumber: number) {
-	const { owner, name } = await getRepo();
-
-	const query = `{ repository(owner: "${owner}", name: "${name}") { issue(number: ${parentNumber}) { subIssuesSummary { completed total } } } }`;
+async function allSubIssuesCompleted(repo: Repo, parentNumber: number) {
+	const query = `{ repository(owner: "${repo.owner}", name: "${repo.name}") { issue(number: ${parentNumber}) { subIssuesSummary { completed total } } } }`;
 
 	const result = await exec(["gh", "api", "graphql", "-f", `query=${query}`]);
 
@@ -75,6 +72,8 @@ export async function closeCompletedParents(
 		groups.set(parent.number, group);
 	}
 
+	const repo = await getRepo();
+
 	for (const [parentNumber, subNumbers] of groups) {
 		const allSucceeded = subNumbers.every(
 			(n) => results.find((r) => r.issue.number === n)?.status === "success",
@@ -82,7 +81,7 @@ export async function closeCompletedParents(
 
 		if (!allSucceeded) continue;
 
-		const allCompleted = await allSubIssuesCompleted(parentNumber);
+		const allCompleted = await allSubIssuesCompleted(repo, parentNumber);
 
 		if (!allCompleted) continue;
 

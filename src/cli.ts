@@ -3,6 +3,7 @@
 import { promptBranch } from "./branch";
 import { type Config, loadConfig } from "./config";
 import { exec } from "./exec";
+import { parseFlags } from "./flags";
 import * as log from "./log";
 import { closeCompletedParents, fetchParents } from "./parent";
 import { fetchIssueWithSubIssues, fetchIssues, runPlanner } from "./planner";
@@ -277,26 +278,9 @@ async function runWorkers(issues: WorkerIssue[], config: Config) {
 	return results;
 }
 
-function parseFlags(args: string[]) {
-	const result: Record<string, string> = {};
-
-	for (let i = 0; i < args.length; i++) {
-		if (args[i].startsWith("--") && i + 1 < args.length) {
-			result[args[i].slice(2)] = args[++i];
-		}
-	}
-
-	return {
-		issue: result.issue ? Number(result.issue) : undefined,
-		label: result.label,
-		concurrency: result.concurrency ? Number(result.concurrency) : undefined,
-		model: result.model,
-		prompt: result.prompt,
-		retries: result.retries ? Number(result.retries) : undefined,
-	};
+if (import.meta.main) {
+	main().catch((e) => {
+		console.error(e);
+		process.exit(1);
+	});
 }
-
-main().catch((e) => {
-	console.error(e);
-	process.exit(1);
-});

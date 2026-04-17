@@ -4,7 +4,7 @@ import { join } from "path";
 import { tmpdir } from "os";
 import { mkdtemp } from "fs/promises";
 
-import { loadConfig } from "./config";
+import { loadConfig, resolveModel } from "./config";
 
 let testDir: string;
 
@@ -93,5 +93,39 @@ describe("loadConfig", () => {
 		expect(config.concurrency).toBe(8);
 		expect(config.retries).toBe(5);
 		expect(config.label).toBe("swarm");
+	});
+
+	test("undefined flag does not overwrite config file value", async () => {
+		await writeFile(join(testDir, "swarm.config.ts"), `export default { label: "from-file" };`);
+
+		const config = await loadConfig({ label: undefined });
+
+		expect(config.label).toBe("from-file");
+	});
+
+	test("config file without a default export is treated as empty", async () => {
+		await writeFile(join(testDir, "swarm.config.ts"), `export const other = 1;`);
+
+		const config = await loadConfig({});
+
+		expect(config.label).toBe("swarm");
+	});
+});
+
+describe("resolveModel", () => {
+	test("maps opus alias to the current opus model id", () => {
+		expect(resolveModel("opus")).toBe("claude-opus-4-6");
+	});
+
+	test("maps sonnet alias to the current sonnet model id", () => {
+		expect(resolveModel("sonnet")).toBe("claude-sonnet-4-6");
+	});
+
+	test("maps haiku alias to the current haiku model id", () => {
+		expect(resolveModel("haiku")).toBe("claude-haiku-4-5-20251001");
+	});
+
+	test("passes through an unknown value unchanged (custom model id)", () => {
+		expect(resolveModel("claude-some-future-model")).toBe("claude-some-future-model");
 	});
 });

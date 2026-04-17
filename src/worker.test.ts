@@ -18,19 +18,18 @@ async function git(args: string[], cwd: string) {
 
 const mockRunClaude = mock();
 
-mock.module("./exec", () => ({
-	exec: async (cmd: string[], opts?: { cwd?: string }) => {
-		const proc = Bun.spawn(cmd, { cwd: opts?.cwd, stdout: "pipe", stderr: "pipe" });
-		const [exitCode, stdout, stderr] = await Promise.all([
-			proc.exited,
-			new Response(proc.stdout).text(),
-			new Response(proc.stderr).text(),
-		]);
-		if (exitCode !== 0) throw new Error(`${cmd.join(" ")} failed (exit ${exitCode}):\n${stderr}`);
-		return stdout.trim();
-	},
+mock.module("./claude", () => ({
 	runClaude: mockRunClaude,
 }));
+
+// Re-register `./exec` with the real implementation. Bun's `mock.module` is
+// global; other test files mock `./exec` with recorded stubs and, without this,
+// their mocks leak into this file and break the real-git integration tests.
+// The factory must return a plain object (not a Module namespace) — returning
+// a namespace silently fails to override an existing registration.
+const { exec: realExec } = await import("./exec-impl");
+
+mock.module("./exec", () => ({ exec: realExec }));
 
 const { runWorker, resolveConflict } = await import("./worker");
 
@@ -162,6 +161,50 @@ describe("runWorker", () => {
 		const result = await runWorker(issue, config, merge);
 
 		expect(result.status).toBe("merge-failed");
+	});
+
+	test("resume=true tries --continue first, then falls back to full prompt on failure", async () => {
+		const worktreePath = join(testDir, ".swarm", "99");
+
+		await git(["worktree", "add", worktreePath, "-b", "swarm/99"], testDir);
+
+		await writeFile(join(worktreePath, "partial.txt"), "wip");
+
+		await git(["add", "."], worktreePath);
+
+		await git(["worktree", "remove", worktreePath, "--force"], testDir);
+
+		const prompts: { prompt: string; resume: boolean | undefined }[] = [];
+
+		mockRunClaude.mockImplementation(
+			async (prompt: string, opts: { cwd?: string; resume?: boolean }) => {
+				prompts.push({ prompt, resume: opts.resume });
+
+				if (opts.resume) throw new Error("claude --continue failed");
+
+				await writeFile(join(opts.cwd!, "done.txt"), "ok");
+
+				await git(["add", "."], opts.cwd!);
+
+				await git(["commit", "-m", "recovered #99"], opts.cwd!);
+
+				return "";
+			},
+		);
+
+		const result = await runWorker(issue, config, realMerge(), true);
+
+		expect(result.status).toBe("success");
+
+		expect(prompts).toHaveLength(2);
+
+		expect(prompts[0].resume).toBe(true);
+
+		expect(prompts[0].prompt).toContain("previous attempt");
+
+		expect(prompts[1].resume).toBeUndefined();
+
+		expect(prompts[1].prompt).toContain("resuming work");
 	});
 });
 

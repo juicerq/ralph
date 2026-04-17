@@ -1,147 +1,178 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 
-import type { WorkerResult } from "./worker";
+type LogEntry = { level: string; text: string };
 
-let logged: string[] = [];
+let entries: LogEntry[] = [];
+
+let taskLogEntries: LogEntry[] = [];
 
 mock.module("@clack/prompts", () => {
-	const capture = (...args: unknown[]) => {
-		logged.push(args.map(String).join(" "));
-	};
+	const push =
+		(level: string) =>
+		(...args: unknown[]) => {
+			entries.push({ level, text: args.map(String).join(" ") });
+		};
+
+	const pushTask =
+		(level: string) =>
+		(...args: unknown[]) => {
+			taskLogEntries.push({ level, text: args.map(String).join(" ") });
+		};
 
 	return {
-		intro: capture,
-		outro: capture,
+		intro: push("intro"),
+		outro: push("outro"),
 		log: {
-			info: capture,
-			step: capture,
-			success: capture,
-			warning: capture,
-			error: capture,
-			message: capture,
+			info: push("info"),
+			step: push("step"),
+			success: push("success"),
+			warning: push("warning"),
+			error: push("error"),
+			message: push("message"),
 		},
 		taskLog: () => ({
-			message: capture,
-			success: capture,
-			error: capture,
+			message: pushTask("message"),
+			success: pushTask("success"),
+			error: pushTask("error"),
 		}),
+		// Present so other test files that interleave with this one — and reuse the same
+		// global @clack/prompts mock — can still resolve the `text` binding.
+		text: async () => "",
 	};
 });
 
-import * as log from "./log";
+const log = await import("./log");
 
 beforeEach(() => {
-	logged = [];
-});
-
-describe("info", () => {
-	test("logs a message", () => {
-		log.info("hello");
-
-		expect(logged.length).toBe(1);
-
-		expect(logged[0]).toContain("hello");
-	});
+	entries = [];
+	taskLogEntries = [];
 });
 
 describe("status", () => {
-	test("logs issue number, title, and status", () => {
+	test("formats issue number, title, symbol, and message", () => {
 		log.status({ number: 42, title: "Fix bug" }, "starting");
 
-		expect(logged.length).toBe(1);
-
-		expect(logged[0]).toContain("#42");
-
-		expect(logged[0]).toContain("Fix bug");
-
-		expect(logged[0]).toContain("▶");
-
-		expect(logged[0]).toContain("starting");
+		expect(entries).toEqual([{ level: "step", text: "#42 Fix bug  ▶ starting" }]);
 	});
 
-	test("uses ✓ for merged", () => {
-		log.status({ number: 1, title: "X" }, "merged");
+	test.each([
+		["merged", "✓"],
+		["resolved", "✓"],
+		["already done", "✓"],
+		["starting", "▶"],
+		["retrying", "▶"],
+		["resolving", "▶"],
+		["failed", "✗"],
+		["merge-failed", "✗"],
+		["unresolved", "✗"],
+		["anything else", "●"],
+	])("uses %s symbol for status %s", (status, symbol) => {
+		log.status({ number: 1, title: "X" }, status);
 
-		expect(logged[0]).toContain("✓");
+		expect(entries[0].text).toContain(symbol);
 	});
 
-	test("uses ✗ for failed", () => {
-		log.status({ number: 1, title: "X" }, "failed");
+	test("routes to taskLog while workers are active", () => {
+		log.startWorkers();
 
-		expect(logged[0]).toContain("✗");
+		log.status({ number: 7, title: "T" }, "starting");
+
+		expect(entries.filter((e) => e.level === "step")).toEqual([]);
+
+		expect(taskLogEntries).toEqual([{ level: "message", text: "#7 T  ▶ starting" }]);
+
+		log.endWorkers([]);
+	});
+});
+
+describe("toolCall", () => {
+	test("writes to taskLog with padded tool name", () => {
+		log.startWorkers();
+
+		log.toolCall(3, "Edit", "src/foo.ts");
+
+		expect(taskLogEntries).toEqual([{ level: "message", text: "#3 ── Edit         src/foo.ts" }]);
+
+		log.endWorkers([]);
 	});
 
-	test("uses ● for unknown status", () => {
-		log.status({ number: 1, title: "X" }, "custom");
+	test("is a no-op when workers have not started", () => {
+		log.toolCall(3, "Edit", "src/foo.ts");
 
-		expect(logged[0]).toContain("●");
+		expect(taskLogEntries).toEqual([]);
+
+		expect(entries).toEqual([]);
+	});
+});
+
+describe("endWorkers", () => {
+	const issue = { number: 1, title: "T", body: "", dependsOn: [] };
+
+	test("reports success when all succeeded or already-done", () => {
+		log.startWorkers();
+
+		log.endWorkers([
+			{ issue, status: "success", branch: "swarm/1" },
+			{ issue: { ...issue, number: 2 }, status: "already-done", branch: "swarm/2" },
+		]);
+
+		expect(taskLogEntries).toEqual([{ level: "success", text: "2 issue(s) implemented" }]);
+	});
+
+	test("reports error when any failed", () => {
+		log.startWorkers();
+
+		log.endWorkers([
+			{ issue, status: "success", branch: "swarm/1" },
+			{ issue: { ...issue, number: 2 }, status: "failed", error: "x", branch: "swarm/2" },
+		]);
+
+		expect(taskLogEntries).toEqual([{ level: "error", text: "1 succeeded, 1 failed" }]);
+	});
+
+	test("is a no-op when workers have not started", () => {
+		log.endWorkers([{ issue, status: "success", branch: "swarm/1" }]);
+
+		expect(taskLogEntries).toEqual([]);
+	});
+
+	test("after endWorkers, subsequent status calls route to step again", () => {
+		log.startWorkers();
+
+		log.endWorkers([]);
+
+		log.status(issue, "starting");
+
+		expect(entries).toEqual([{ level: "step", text: "#1 T  ▶ starting" }]);
 	});
 });
 
 describe("summary", () => {
 	const issue = { number: 1, title: "Add auth", body: "", dependsOn: [] };
 
-	test("shows succeeded issue", () => {
-		const results: WorkerResult[] = [{ issue, status: "success", branch: "swarm/1" }];
+	test("success uses success level without a log hint", () => {
+		log.summary([{ issue, status: "success", branch: "swarm/1" }]);
 
-		log.summary(results);
-
-		const output = logged.join("\n");
-
-		expect(output).toContain("#1");
-
-		expect(output).toContain("Add auth");
+		expect(entries).toEqual([{ level: "success", text: "#1 Add auth" }]);
 	});
 
-	test("shows error message for failed", () => {
-		const results: WorkerResult[] = [
-			{ issue, status: "failed", error: "something broke", branch: "swarm/1" },
-		];
+	test("already-done uses info level", () => {
+		log.summary([{ issue, status: "already-done", branch: "swarm/1" }]);
 
-		log.summary(results);
-
-		const output = logged.join("\n");
-
-		expect(output).toContain("something broke");
+		expect(entries).toEqual([{ level: "info", text: "#1 Add auth — already implemented" }]);
 	});
 
-	test("shows merge-failed issue", () => {
-		const results: WorkerResult[] = [
-			{ issue, status: "merge-failed", error: "conflict", branch: "swarm/1" },
-		];
+	test("failed uses error level and includes error message plus log hint", () => {
+		log.summary([{ issue, status: "failed", error: "boom", branch: "swarm/1" }]);
 
-		log.summary(results);
-
-		const output = logged.join("\n");
-
-		expect(output).toContain("#1");
-
-		expect(output).toContain("conflict");
+		expect(entries).toEqual([{ level: "error", text: "#1 Add auth — boom → .swarm/logs/1.log" }]);
 	});
 
-	test("shows log file hint for non-success", () => {
-		const results: WorkerResult[] = [{ issue, status: "failed", error: "err", branch: "swarm/1" }];
+	test("merge-failed uses warning level, not error", () => {
+		log.summary([{ issue, status: "merge-failed", error: "conflict", branch: "swarm/1" }]);
 
-		log.summary(results);
-
-		const output = logged.join("\n");
-
-		expect(output).toContain(".swarm/logs/1.log");
-	});
-
-	test("does not show log hint for success", () => {
-		const results: WorkerResult[] = [{ issue, status: "success", branch: "swarm/1" }];
-
-		log.summary(results);
-
-		const output = logged.join("\n");
-
-		expect(output).not.toContain(".swarm/logs/");
-	});
-
-	test("handles empty results", () => {
-		log.summary([]);
-
-		expect(logged.length).toBe(0);
+		expect(entries).toEqual([
+			{ level: "warning", text: "#1 Add auth — conflict → .swarm/logs/1.log" },
+		]);
 	});
 });
