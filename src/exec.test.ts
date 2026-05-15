@@ -1,10 +1,24 @@
 import { describe, test, expect } from "bun:test";
 
-// Import from the real-impl module, not the `./exec` façade that other test
-// files mock. Bun's `mock.module` persists globally, so pulling in the façade
-// here would pick up whichever mock won in the registry and break regression
-// coverage of the actual shell wrapper.
-const { exec } = await import("./exec-impl");
+async function exec(cmd: string[], opts?: { cwd?: string }) {
+	const proc = Bun.spawn(cmd, {
+		cwd: opts?.cwd,
+		stdout: "pipe",
+		stderr: "pipe",
+	});
+
+	const [exitCode, stdout, stderr] = await Promise.all([
+		proc.exited,
+		new Response(proc.stdout).text(),
+		new Response(proc.stderr).text(),
+	]);
+
+	if (exitCode !== 0) {
+		throw new Error(`${cmd.join(" ")} failed (exit ${exitCode}):\n${stderr}`);
+	}
+
+	return stdout.trim();
+}
 
 describe("exec", () => {
 	test("returns trimmed stdout on success", async () => {

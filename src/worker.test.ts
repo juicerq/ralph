@@ -22,9 +22,27 @@ mock.module("./claude", () => ({
 	runClaude: mockRunClaude,
 }));
 
-const { exec: realExec } = await import("./exec-impl");
+async function exec(cmd: string[], opts?: { cwd?: string }) {
+	const proc = Bun.spawn(cmd, {
+		cwd: opts?.cwd,
+		stdout: "pipe",
+		stderr: "pipe",
+	});
 
-mock.module("./exec", () => ({ exec: realExec }));
+	const [exitCode, stdout, stderr] = await Promise.all([
+		proc.exited,
+		new Response(proc.stdout).text(),
+		new Response(proc.stderr).text(),
+	]);
+
+	if (exitCode !== 0) {
+		throw new Error(`${cmd.join(" ")} failed (exit ${exitCode}):\n${stderr}`);
+	}
+
+	return stdout.trim();
+}
+
+mock.module("./exec", () => ({ exec }));
 
 const { runWorker, resolveConflict } = await import("./worker");
 
