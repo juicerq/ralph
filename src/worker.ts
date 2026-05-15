@@ -1,6 +1,6 @@
 import { runClaude } from "./claude";
 import { type Config, resolveModel } from "./config";
-import { exec } from "./exec";
+import { exec } from "./exec-impl";
 import type { PlannedIssue } from "./planner";
 
 export type WorkerIssue = PlannedIssue & { body: string };

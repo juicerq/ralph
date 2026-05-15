@@ -22,15 +22,6 @@ mock.module("./claude", () => ({
 	runClaude: mockRunClaude,
 }));
 
-// Re-register `./exec` with the real implementation. Bun's `mock.module` is
-// global; other test files mock `./exec` with recorded stubs and, without this,
-// their mocks leak into this file and break the real-git integration tests.
-// The factory must return a plain object (not a Module namespace) — returning
-// a namespace silently fails to override an existing registration.
-const { exec: realExec } = await import("./exec-impl");
-
-mock.module("./exec", () => ({ exec: realExec }));
-
 const { runWorker, resolveConflict } = await import("./worker");
 
 let testDir: string;
