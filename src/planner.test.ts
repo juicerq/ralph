@@ -7,6 +7,12 @@ mock.module("./claude", () => ({
 	runClaude: mockRunClaude,
 }));
 
+// Bun corrupts re-exported modules when they are loaded for real before
+// being mocked. planner.ts imports ./exec (a re-export of ./exec-impl);
+// without this mock, the real load poisons ./exec-impl for later test
+// files that need the real implementation.
+mock.module("./exec", () => ({ exec: mock() }));
+
 const { runPlanner } = await import("./planner");
 
 beforeEach(() => {
