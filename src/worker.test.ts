@@ -83,6 +83,7 @@ describe("runWorker", () => {
 		simulateCommit();
 		const result = await runWorker(issue, config, realMerge());
 
+		if (result.status !== "success") console.log("DEBUG fresh:", result.error);
 		expect(result.status).toBe("success");
 		expect(mockRunClaude.mock.calls[0][0]).toContain("You are implementing");
 	});
@@ -100,6 +101,7 @@ describe("runWorker", () => {
 
 		const result = await runWorker(issue, config, realMerge());
 
+		if (result.status !== "success") console.log("DEBUG resume-existing:", result.error);
 		expect(result.status).toBe("success");
 		expect(mockRunClaude.mock.calls[0][0]).toContain("resuming work");
 	});
@@ -115,6 +117,7 @@ describe("runWorker", () => {
 		simulateCommit();
 		const result = await runWorker(issue, config, realMerge());
 
+		if (result.status !== "success") console.log("DEBUG resume-orphan:", result.error);
 		expect(result.status).toBe("success");
 		expect(mockRunClaude.mock.calls[0][0]).toContain("resuming work");
 	});
