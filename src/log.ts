@@ -47,7 +47,9 @@ export function toolCall(issueNumber: number, name: string, args: string) {
 }
 
 export function endWorkers(results: WorkerResult[]) {
-	if (!tl) return;
+	if (!tl) {
+		return;
+	}
 
 	const succeeded = results.filter(
 		(r) => r.status === "success" || r.status === "already-done",
